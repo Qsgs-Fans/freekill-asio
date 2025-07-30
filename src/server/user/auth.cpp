@@ -325,7 +325,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
   RSA_private_decrypt(RSA_size(p_ptr->rsa), (const unsigned char *)password.data(),
                       buf, p_ptr->rsa, RSA_PKCS1_PADDING);
   auto decrypted_pw =
-      std::string((const char *)buf, strlen((const char *)buf));
+      std::string { (const char *)buf, strlen((const char *)buf) };
 
   if (decrypted_pw.length() > 32) {
     // TODO: 先不加密吧，把CBOR搭起来先
