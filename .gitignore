@@ -17,6 +17,7 @@
 /*.kdev4
 /.cache/
 /tags
+.clangd
 # /.luarc.json
 /.qmllint.ini
 
