@@ -38,9 +38,9 @@ Sqlite3::~Sqlite3() {
   sqlite3_close(db);
 }
 
-bool Sqlite3::checkString(const char *str) {
+bool Sqlite3::checkString(const std::string_view &sv) {
   static const std::regex exp(R"(['\";#* /\\?<>|:]+|(--)|(/\*)|(\*/)|(--\+))");
-  return !std::regex_search(str, exp);
+  return !std::regex_search(sv.begin(), sv.end(), exp);
 }
 
 // callback for handling SELECT expression

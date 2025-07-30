@@ -13,7 +13,7 @@ public:
           const char *initSql = "./server/init.sql");
   ~Sqlite3();
 
-  static bool checkString(const char *str);
+  static bool checkString(const std::string_view &str);
 
   typedef std::vector<std::map<std::string, std::string>> QueryResult;
   QueryResult select(const std::string &sql);

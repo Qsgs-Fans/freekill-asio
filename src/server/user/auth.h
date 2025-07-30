@@ -28,7 +28,7 @@ private:
   bool loadSetupData(Packet &packet);
   bool checkVersion();
 
-  Sqlite3 *db;
+  std::unique_ptr<Sqlite3> db;
 
   bool checkIfUuidNotBanned();
   bool checkMd5();

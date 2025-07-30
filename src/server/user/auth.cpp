@@ -230,7 +230,7 @@ bool AuthManager::checkIfUuidNotBanned() {
   auto &server = Server::instance();
   auto uuid_str = p_ptr->uuid;
   Sqlite3::QueryResult result2 = { {} };
-  if (Sqlite3::checkString(std::string(uuid_str).c_str())) {
+  if (Sqlite3::checkString(uuid_str)) {
     result2 = db->select(fmt::format("SELECT * FROM banuuid WHERE uuid='{}';", uuid_str));
   }
 
@@ -311,7 +311,7 @@ avatar,lastLoginIp,banned) VALUES ('{}','{}','{}','{}','{}',{});", p_ptr->name, 
 std::map<std::string, std::string> AuthManager::checkPassword() {
   auto &server = Server::instance();
   auto client = p_ptr->client;
-  auto name = std::string(p_ptr->name);
+  auto name = std::string_view(p_ptr->name);
   auto password = p_ptr->password;
   bool passed = false;
   const char *error_msg = nullptr;
@@ -334,7 +334,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
     // tell client to install aes key
     // server->sendEarlyPacket(client, "InstallKey", "");
     // client->installAESKey(aes_bytes);
-    decrypted_pw.substr(0, 32);
+    decrypted_pw = decrypted_pw.substr(0, 32);
   } else {
     // FIXME
     // decrypted_pw = "\xFF";
@@ -342,7 +342,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
     goto FAIL;
   }
 
-  if (name.empty() || !Sqlite3::checkString(name.c_str()) || !server.checkBanWord(name)) {
+  if (name.empty() || !Sqlite3::checkString(name) || !server.checkBanWord(name)) {
     error_msg = "invalid user name";
     goto FAIL;
   }
@@ -409,7 +409,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
 FAIL:
   if (!passed) {
     if (auto client_locked = p_ptr->client.lock()) {
-      spdlog::info(std::string(client_locked->peerAddress()) + "lost connection:" + error_msg);
+      spdlog::info("{}lost connection:{}", client_locked->peerAddress(), error_msg);
       server.sendEarlyPacket(*client_locked, "ErrorDlg", error_msg);
       client_locked->disconnectFromHost();
     }
