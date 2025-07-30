@@ -105,7 +105,7 @@ std::string Color(const std::string &raw, fkShell::TextColor color,
   static const char *suffix = "\e[0;0m";
   int col = 30 + color;
   int t = type == fkShell::Bold ? 1 : 0;
-  auto prefix = std::format("\e[{};{}m", t, col);
+  auto prefix = fmt::format("\e[{};{}m", t, col);
 
   return prefix + raw + suffix;
 }

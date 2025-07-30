@@ -117,9 +117,9 @@ int PackMan::downloadNewPack(const char *u) {
     fileName = fileName.substr(0, fileName.size() - 4);
   }
 
-  auto result = db->select(std::format(sql_select, fileName));
+  auto result = db->select(fmt::format(sql_select, fileName));
   if (result.empty()) {
-    db->exec(std::format(sql_update, fileName, url, head(fileName.c_str())));
+    db->exec(fmt::format(sql_update, fileName, url, head(fileName.c_str())));
   }
 
   return err;
@@ -127,7 +127,7 @@ int PackMan::downloadNewPack(const char *u) {
 
 void PackMan::enablePack(const char *pack) {
   db->exec(
-      std::format("UPDATE packages SET enabled = 1 WHERE name = '{}';", pack));
+      fmt::format("UPDATE packages SET enabled = 1 WHERE name = '{}';", pack));
 
   auto it = std::remove(disabled_packs.begin(), disabled_packs.end(), pack);
   if (it != disabled_packs.end()) {
@@ -142,7 +142,7 @@ void PackMan::disablePack(const char *pack) {
   }
 
   db->exec(
-    std::format("UPDATE packages SET enabled = 0 WHERE name = '{}';", pack));
+    fmt::format("UPDATE packages SET enabled = 0 WHERE name = '{}';", pack));
 
   auto it = std::find(disabled_packs.begin(), disabled_packs.end(), pack);
   if (it == disabled_packs.end())
@@ -180,22 +180,22 @@ int PackMan::upgradePack(const char *pack) {
   if (err < 0)
     return err;
 
-  db->exec(std::format("UPDATE packages SET hash = '%1' WHERE name = '%2';",
+  db->exec(fmt::format("UPDATE packages SET hash = '%1' WHERE name = '%2';",
                   head(pack), pack));
   return 0;
 }
 
 void PackMan::removePack(const char *pack) {
-  auto result = db->select(std::format("SELECT enabled FROM packages \
+  auto result = db->select(fmt::format("SELECT enabled FROM packages \
     WHERE name = '{}';", pack));
   if (result.empty())
     return;
 
-  // bool enabled = result[0]["enabled"] == "1";
-  db->exec(std::format("DELETE FROM packages WHERE name = '{}';", pack));
+  bool enabled = result[0]["enabled"] == "1";
+  db->exec(fmt::format("DELETE FROM packages WHERE name = '{}';", pack));
 
   std::error_code ec;
-  std::filesystem::remove_all(std::format("packages/{}", pack), ec);
+  std::filesystem::remove_all(fmt::format("packages/{}", pack), ec);
   if (ec) {
     spdlog::error("Failed to remove directory: {}", ec.message());
   }
@@ -212,7 +212,7 @@ void PackMan::forceCheckoutMaster(const char *pack) {
 void PackMan::syncCommitHashToDatabase() {
   for (auto e : db->select("SELECT name FROM packages;")) {
     auto pack = e["name"];
-    db->exec(std::format("UPDATE packages SET hash = '{}' WHERE name = '{}';",
+    db->exec(fmt::format("UPDATE packages SET hash = '{}' WHERE name = '{}';",
              head(pack.c_str()), pack));
   }
 }
@@ -280,7 +280,7 @@ int PackMan::pull(const char *name) {
   git_repository *repo = NULL;
   int err;
   git_remote *remote = NULL;
-  auto path = std::format("packages/{}", name);
+  auto path = fmt::format("packages/{}", name);
   git_fetch_options opt;
   git_fetch_init_options(&opt, GIT_FETCH_OPTIONS_VERSION);
   opt.proxy_opts.version = 1;
@@ -320,7 +320,7 @@ int PackMan::checkout(const char *name, const char *hash) {
   git_oid oid = {0};
   git_checkout_options opt = GIT_CHECKOUT_OPTIONS_INIT;
   opt.checkout_strategy = GIT_CHECKOUT_FORCE;
-  auto path = std::format("packages/{}", name);
+  auto path = fmt::format("packages/{}", name);
   err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
   err = git_oid_fromstr(&oid, hash);
@@ -351,12 +351,12 @@ int PackMan::checkout_branch(const char *name, const char *branch) {
   std::string remote_branch;
 
   // 打开仓库
-  auto path = std::format("packages/{}", name);
+  auto path = fmt::format("packages/{}", name);
   err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
 
   // 查找远程分支的引用 (refs/remotes/origin/branch)
-  remote_branch = std::format("refs/remotes/origin/{}", branch);
+  remote_branch = fmt::format("refs/remotes/origin/{}", branch);
   err = git_reference_lookup(&remote_ref, repo, remote_branch.c_str());
   GIT_CHK_CLEAN;
 
@@ -368,7 +368,7 @@ int PackMan::checkout_branch(const char *name, const char *branch) {
   git_oid_cpy(&oid, git_object_id(obj));
 
    // 查找本地分支的引用
-  local_branch = std::format("refs/heads/{}", branch);
+  local_branch = fmt::format("refs/heads/{}", branch);
   err = git_reference_lookup(&branch_ref, repo, local_branch.c_str());
   if (err == 0) {
     // 分支存在，强制重置
@@ -405,7 +405,7 @@ int PackMan::status(const char *name) {
   git_status_list *status_list = NULL;
   size_t i, maxi;
   const git_status_entry *s;
-  auto path = std::format("packages/{}", name);
+  auto path = fmt::format("packages/{}", name);
   err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
   err = git_status_list_new(&status_list, repo, NULL);
@@ -434,7 +434,7 @@ std::string PackMan::head(const char *name) {
   git_object *obj = NULL;
   const git_oid *oid;
   char buf[42] = {0};
-  auto path = std::format("packages/{}", name);
+  auto path = fmt::format("packages/{}", name);
   err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
   err = git_revparse_single(&obj, repo, "HEAD");

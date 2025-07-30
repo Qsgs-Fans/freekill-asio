@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "core/c-wrapper.h"
+#include "core/packman.h"
 #include "server/user/auth.h"
 #include "server/user/user_manager.h"
+#include "server/user/player.h"
 #include "server/server.h"
 #include "network/client_socket.h"
 #include "network/router.h"
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
+#include <openssl/sha.h>
+#include <openssl/md5.h>
+#include <lua5.4/lua.h>
+#include <random>
+#include <chrono>
 
 struct AuthManagerPrivate {
   AuthManagerPrivate();
@@ -132,16 +140,16 @@ void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packe
 
   if (!loadSetupData(packet)) { return; }
   if (!checkVersion()) { return; }
-  // if (!checkIfUuidNotBanned()) { return; }
-  // if (!checkMd5()) { return; }
+  if (!checkIfUuidNotBanned()) { return; }
+  if (!checkMd5()) { return; }
 
-  // auto obj = checkPassword();
-  // if (obj.isEmpty()) return;
+  auto obj = checkPassword();
+  if (obj.empty()) return;
 
-  // int id = obj["id"].toInt();
-  // updateUserLoginData(id);
-  // user_manager->createNewPlayer(conn, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
-  user_manager.createNewPlayer(conn, "player", "liubei", 1, "12345678");
+  int id = std::stoi(obj["id"]);
+  updateUserLoginData(id);
+  user_manager.createNewPlayer(conn, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
+  // user_manager.createNewPlayer(conn, "player", "liubei", 1, "12345678");
 }
 
 static struct cbor_callbacks callbacks = cbor_empty_callbacks;
@@ -217,18 +225,21 @@ bool AuthManager::checkVersion() {
   return true;
 }
 
-/*
+
 bool AuthManager::checkIfUuidNotBanned() {
+  auto &server = Server::instance();
   auto uuid_str = p_ptr->uuid;
   Sqlite3::QueryResult result2 = { {} };
-  if (Sqlite3::checkString(uuid_str)) {
-    result2 = db->select(QStringLiteral("SELECT * FROM banuuid WHERE uuid='%1';").arg(uuid_str));
+  if (Sqlite3::checkString(std::string(uuid_str).c_str())) {
+    result2 = db->select(fmt::format("SELECT * FROM banuuid WHERE uuid='{}';", uuid_str));
   }
 
-  if (!result2.isEmpty()) {
-    server->sendEarlyPacket(p_ptr->client, "ErrorDlg", "you have been banned!");
-    qInfo() << "Refused banned UUID:" << uuid_str;
-    p_ptr->client->disconnectFromHost();
+  if (!result2.empty()) {
+    if (auto client = p_ptr->client.lock()) {
+      Server::instance().sendEarlyPacket(*client, "ErrorDlg", "you have been banned!");
+      spdlog::info("Refused banned UUID:%s", uuid_str);
+      client->disconnectFromHost();
+    }
     return false;
   }
 
@@ -236,68 +247,85 @@ bool AuthManager::checkIfUuidNotBanned() {
 }
 
 bool AuthManager::checkMd5() {
+  auto &server = Server::instance();
   auto md5_str = p_ptr->md5;
-  if (server->getMd5() != md5_str) {
-    server->sendEarlyPacket(p_ptr->client, "ErrorMsg", "MD5 check failed!");
-    server->sendEarlyPacket(p_ptr->client, "UpdatePackage", Pacman->getPackSummary().toUtf8());
-    p_ptr->client->disconnectFromHost();
+  //因为server还没有md5，先搁置
+  /* 
+  if (server.getMd5() != md5_str) {
+    if (auto client = p_ptr->client.lock()) {
+      server.sendEarlyPacket(*client, "ErrorMsg", "MD5 check failed!");
+      server.sendEarlyPacket(*client, "UpdatePackage", Pacman->getPackSummary().toUtf8());
+      client->disconnectFromHost();
+    }
     return false;
   }
+  */
   return true;
 }
 
-QMap<QString, QString> AuthManager::queryUserInfo(const QByteArray &password) {
-  auto db = server->getDatabase();
+std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string &password) {
+  auto &server = Server::instance();
   auto pw = password;
-  auto sql_find = QStringLiteral("SELECT * FROM userinfo WHERE name='%1';")
-    .arg(p_ptr->name);
-  auto sql_count_uuid = QStringLiteral("SELECT COUNT() AS cnt FROM uuidinfo WHERE uuid='%1';")
-    .arg(p_ptr->uuid);
+  auto sql_find = fmt::format("SELECT * FROM userinfo WHERE name='{}';", p_ptr->name);
+  auto sql_count_uuid = fmt::format("SELECT COUNT() AS cnt FROM uuidinfo WHERE uuid='{}';", p_ptr->uuid);
 
   auto result = db->select(sql_find);
-  if (result.isEmpty()) {
+  if (result.empty()) {
     auto result2 = db->select(sql_count_uuid);
-    auto num = result2[0]["cnt"].toInt();
-    if (num >= server->getConfig("maxPlayersPerDevice").toInt()) {
-      return {};
-    }
-    auto salt_gen = QRandomGenerator::securelySeeded();
-    auto salt = QByteArray::number(salt_gen(), 16);
+    auto num = std::stoi(result2[0]["cnt"]);
+    // if (num >= std::stoi(server.getConfig("maxPlayersPerDevice"))) {
+    //   return {};
+    // }
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis;
+    uint64_t salt_val = dis(gen);
+    std::string salt = std::to_string(salt_val);
     pw.append(salt);
-    auto passwordHash =
-      QCryptographicHash::hash(pw, QCryptographicHash::Sha256).toHex();
-    auto sql_reg = QString("INSERT INTO userinfo (name,password,salt,\
-avatar,lastLoginIp,banned) VALUES ('%1','%2','%3','%4','%5',%6);")
-      .arg(p_ptr->name).arg(QString(passwordHash))
-      .arg(salt).arg("liubei").arg(p_ptr->client->peerAddress())
-      .arg("FALSE");
+    // 计算密码哈希
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256((const unsigned char *)pw.data(), pw.size(), hash);
+    
+    std::string passwordHash;
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
+      char buf[3];
+      snprintf(buf, sizeof(buf), "%02x", hash[i]);
+      passwordHash += buf;
+    }
+    auto sql_reg = fmt::format("INSERT INTO userinfo (name,password,salt,\
+avatar,lastLoginIp,banned) VALUES ('{}','{}','{}','{}','{}',{});", p_ptr->name, passwordHash, salt, "liubei", p_ptr->client.lock()->peerAddress(), "FALSE");
     db->exec(sql_reg);
     result = db->select(sql_find); // refresh result
     auto obj = result[0];
 
-    auto info_update = QString("INSERT INTO usergameinfo (id, registerTime) VALUES (%1, %2);").arg(obj["id"].toInt()).arg(QDateTime::currentSecsSinceEpoch());
+    // 获取当前时间戳
+    auto now = std::chrono::system_clock::now();
+    auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+
+    auto info_update = fmt::format("INSERT INTO usergameinfo (id, registerTime) VALUES ({}, {});", std::stoi(obj["id"]), timestamp);
     db->exec(info_update);
   }
   return result[0];
 }
 
-QMap<QString, QString> AuthManager::checkPassword() {
+std::map<std::string, std::string> AuthManager::checkPassword() {
+  auto &server = Server::instance();
   auto client = p_ptr->client;
-  auto name = p_ptr->name;
+  auto name = std::string(p_ptr->name);
   auto password = p_ptr->password;
   bool passed = false;
   const char *error_msg = nullptr;
-  QMap<QString, QString> obj;
+  std::map<std::string, std::string> obj;
   int id;
-  QByteArray salt;
-  QByteArray passwordHash;
-  auto players = server->getPlayers();
+  std::string salt;
+  std::string passwordHash;
+  auto players = server.user_manager().getPlayers();
 
   unsigned char buf[4096] = {0};
   RSA_private_decrypt(RSA_size(p_ptr->rsa), (const unsigned char *)password.data(),
                       buf, p_ptr->rsa, RSA_PKCS1_PADDING);
   auto decrypted_pw =
-      QByteArray::fromRawData((const char *)buf, strlen((const char *)buf));
+      std::string((const char *)buf, strlen((const char *)buf));
 
   if (decrypted_pw.length() > 32) {
     // TODO: 先不加密吧，把CBOR搭起来先
@@ -306,7 +334,7 @@ QMap<QString, QString> AuthManager::checkPassword() {
     // tell client to install aes key
     // server->sendEarlyPacket(client, "InstallKey", "");
     // client->installAESKey(aes_bytes);
-    decrypted_pw.remove(0, 32);
+    decrypted_pw.substr(0, 32);
   } else {
     // FIXME
     // decrypted_pw = "\xFF";
@@ -314,52 +342,62 @@ QMap<QString, QString> AuthManager::checkPassword() {
     goto FAIL;
   }
 
-  if (name.isEmpty() || !Sqlite3::checkString(name) || !server->checkBanWord(name)) {
+  if (name.empty() || !Sqlite3::checkString(name.c_str()) || !server.checkBanWord(name)) {
     error_msg = "invalid user name";
     goto FAIL;
   }
-
+  // TODO: 白名单先搁置
+  /* 
   if (!server->nameIsInWhiteList(name)) {
     error_msg = "user name not in whitelist";
     goto FAIL;
   }
-
+ */
   obj = queryUserInfo(decrypted_pw);
-  if (obj.isEmpty()) {
+  if (obj.empty()) {
     error_msg = "cannot register more new users on this device";
     goto FAIL;
   }
 
   // check ban account
-  id = obj["id"].toInt();
-  passed = obj["banned"].toInt() == 0;
+  id = std::stoi(obj["id"]);
+  passed = std::stoi(obj["banned"]) == 0;
   if (!passed) {
     error_msg = "you have been banned!";
     goto FAIL;
   }
 
   // check if password is the same
-  salt = obj["salt"].toLatin1();
+  salt = obj["salt"];
   decrypted_pw.append(salt);
-  passwordHash =
-    QCryptographicHash::hash(decrypted_pw, QCryptographicHash::Sha256).toHex();
+  // 计算密码哈希
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  SHA256((const unsigned char *)decrypted_pw.data(), decrypted_pw.size(), hash);
+
+  for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
+    char buf[3];
+    snprintf(buf, sizeof(buf), "%02x", hash[i]);
+    passwordHash += buf;
+  }
   passed = (passwordHash == obj["password"]);
   if (!passed) {
     error_msg = "username or password error";
     goto FAIL;
   }
 
-  if (players.value(id)) {
-    auto player = players.value(id);
+  if (players.contains(id)) {
+    auto player = players.at(id);
     // 顶号机制，如果在线的话就让他变成不在线
     if (player->getState() == Player::Online || player->getState() == Player::Robot) {
       player->doNotify("ErrorDlg", "others logged in again with this name");
-      emit player->kicked();
+      // FIXME: emit kicked()
+      // player->set_kicked_callback();
     }
 
     if (player->getState() == Player::Offline) {
       updateUserLoginData(id);
-      player->reconnect(client);
+      // FIXME: player->reconnect()
+      // player->reconnect(client);
       passed = true;
       return {};
     } else {
@@ -370,9 +408,11 @@ QMap<QString, QString> AuthManager::checkPassword() {
 
 FAIL:
   if (!passed) {
-    qInfo() << client->peerAddress() << "lost connection:" << error_msg;
-    server->sendEarlyPacket(client, "ErrorDlg", error_msg);
-    client->disconnectFromHost();
+    if (auto client_locked = p_ptr->client.lock()) {
+      spdlog::info(std::string(client_locked->peerAddress()) + "lost connection:" + error_msg);
+      server.sendEarlyPacket(*client_locked, "ErrorDlg", error_msg);
+      client_locked->disconnectFromHost();
+    }
     return {};
   }
 
@@ -380,21 +420,32 @@ FAIL:
 }
 
 void AuthManager::updateUserLoginData(int id) {
-  server->beginTransaction();
+  auto &server = Server::instance();
+  std::mutex transaction_mutex;
+
+  // server.beginTransaction();
+  transaction_mutex.lock();
+  db->exec("BEGIN;");
+
   auto sql_update =
-    QStringLiteral("UPDATE userinfo SET lastLoginIp='%1' WHERE id=%2;")
-    .arg(p_ptr->client->peerAddress())
-    .arg(id);
+    fmt::format("UPDATE userinfo SET lastLoginIp='{}' WHERE id={};", p_ptr->client.lock()->peerAddress(), id);
   db->exec(sql_update);
 
-  auto uuid_update = QString("REPLACE INTO uuidinfo (id, uuid) VALUES (%1, '%2');")
-    .arg(id).arg(p_ptr->uuid);
+  auto uuid_update = fmt::format("REPLACE INTO uuidinfo (id, uuid) VALUES ({}, '{}');", id, p_ptr->uuid);
   db->exec(uuid_update);
 
   // 来晚了，有很大可能存在已经注册但是表里面没数据的人
-  db->exec(QStringLiteral("INSERT OR IGNORE INTO usergameinfo (id) VALUES (%1);").arg(id));
-  auto info_update = QStringLiteral("UPDATE usergameinfo SET lastLoginTime=%2 where id=%1;").arg(id).arg(QDateTime::currentSecsSinceEpoch());
+  db->exec(fmt::format("INSERT OR IGNORE INTO usergameinfo (id) VALUES ({});", id));
+
+  // 获取当前时间戳
+  auto now = std::chrono::system_clock::now();
+  auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+  
+  auto info_update = fmt::format("UPDATE usergameinfo SET lastLoginTime={1} where id={0};", id, timestamp);
   db->exec(info_update);
-  server->endTransaction();
+
+  // server.endTransaction();
+  db->exec("COMMIT;");
+  transaction_mutex.unlock();
 }
-*/
+
