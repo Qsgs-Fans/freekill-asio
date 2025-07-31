@@ -102,9 +102,6 @@ AuthManagerPrivate::AuthManagerPrivate() {
 
 AuthManager::AuthManager() {
   p_ptr = std::make_unique<AuthManagerPrivate>();
-  /*
-  db = parent->getDatabase();
-  */
 
   std::string public_key;
   std::ifstream file("server/rsa_pub");
@@ -228,16 +225,17 @@ bool AuthManager::checkVersion() {
 
 bool AuthManager::checkIfUuidNotBanned() {
   auto &server = Server::instance();
+  auto &db = server.getDatabase();
   auto uuid_str = p_ptr->uuid;
   Sqlite3::QueryResult result2 = { {} };
   if (Sqlite3::checkString(uuid_str)) {
-    result2 = db->select(fmt::format("SELECT * FROM banuuid WHERE uuid='{}';", uuid_str));
+    result2 = db.select(fmt::format("SELECT * FROM banuuid WHERE uuid='{}';", uuid_str));
   }
 
   if (!result2.empty()) {
     if (auto client = p_ptr->client.lock()) {
       Server::instance().sendEarlyPacket(*client, "ErrorDlg", "you have been banned!");
-      spdlog::info("Refused banned UUID:%s", uuid_str);
+      spdlog::info("Refused banned UUID: {}", uuid_str);
       client->disconnectFromHost();
     }
     return false;
@@ -265,13 +263,14 @@ bool AuthManager::checkMd5() {
 
 std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string &password) {
   auto &server = Server::instance();
+  auto &db = server.getDatabase();
   auto pw = password;
   auto sql_find = fmt::format("SELECT * FROM userinfo WHERE name='{}';", p_ptr->name);
   auto sql_count_uuid = fmt::format("SELECT COUNT() AS cnt FROM uuidinfo WHERE uuid='{}';", p_ptr->uuid);
 
-  auto result = db->select(sql_find);
+  auto result = db.select(sql_find);
   if (result.empty()) {
-    auto result2 = db->select(sql_count_uuid);
+    auto result2 = db.select(sql_count_uuid);
     auto num = std::stoi(result2[0]["cnt"]);
     // if (num >= std::stoi(server.getConfig("maxPlayersPerDevice"))) {
     //   return {};
@@ -294,8 +293,8 @@ std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string 
     }
     auto sql_reg = fmt::format("INSERT INTO userinfo (name,password,salt,\
 avatar,lastLoginIp,banned) VALUES ('{}','{}','{}','{}','{}',{});", p_ptr->name, passwordHash, salt, "liubei", p_ptr->client.lock()->peerAddress(), "FALSE");
-    db->exec(sql_reg);
-    result = db->select(sql_find); // refresh result
+    db.exec(sql_reg);
+    result = db.select(sql_find); // refresh result
     auto obj = result[0];
 
     // 获取当前时间戳
@@ -303,7 +302,7 @@ avatar,lastLoginIp,banned) VALUES ('{}','{}','{}','{}','{}',{});", p_ptr->name, 
     auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
 
     auto info_update = fmt::format("INSERT INTO usergameinfo (id, registerTime) VALUES ({}, {});", std::stoi(obj["id"]), timestamp);
-    db->exec(info_update);
+    db.exec(info_update);
   }
   return result[0];
 }
@@ -421,31 +420,32 @@ FAIL:
 
 void AuthManager::updateUserLoginData(int id) {
   auto &server = Server::instance();
+  auto &db = server.getDatabase();
   std::mutex transaction_mutex;
 
   // server.beginTransaction();
   transaction_mutex.lock();
-  db->exec("BEGIN;");
+  db.exec("BEGIN;");
 
   auto sql_update =
     fmt::format("UPDATE userinfo SET lastLoginIp='{}' WHERE id={};", p_ptr->client.lock()->peerAddress(), id);
-  db->exec(sql_update);
+  db.exec(sql_update);
 
   auto uuid_update = fmt::format("REPLACE INTO uuidinfo (id, uuid) VALUES ({}, '{}');", id, p_ptr->uuid);
-  db->exec(uuid_update);
+  db.exec(uuid_update);
 
   // 来晚了，有很大可能存在已经注册但是表里面没数据的人
-  db->exec(fmt::format("INSERT OR IGNORE INTO usergameinfo (id) VALUES ({});", id));
+  db.exec(fmt::format("INSERT OR IGNORE INTO usergameinfo (id) VALUES ({});", id));
 
   // 获取当前时间戳
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
   
   auto info_update = fmt::format("UPDATE usergameinfo SET lastLoginTime={1} where id={0};", id, timestamp);
-  db->exec(info_update);
+  db.exec(info_update);
 
   // server.endTransaction();
-  db->exec("COMMIT;");
+  db.exec("COMMIT;");
   transaction_mutex.unlock();
 }
 

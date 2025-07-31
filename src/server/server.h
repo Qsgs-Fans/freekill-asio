@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "core/c-wrapper.h"
+
 class ServerSocket;
 class ClientSocket;
 
@@ -35,6 +37,7 @@ struct ServerConfig {
 class Server {
 public:
   static Server &instance();
+
   Server(Server &) = delete;
   Server(Server &&) = delete;
   ~Server();
@@ -47,6 +50,7 @@ public:
 
   UserManager &user_manager();
   RoomManager &room_manager();
+  Sqlite3 &getDatabase();
   Shell &shell();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
@@ -58,7 +62,6 @@ public:
   std::thread::id mainThreadId() const;
 
   /*
-  Sqlite3 *getDatabase();
 
   void broadcast(const QByteArray &command, const QByteArray &jsonData);
   bool isListening;
@@ -87,6 +90,7 @@ private:
 
   std::unique_ptr<UserManager> m_user_manager;
   std::unique_ptr<RoomManager> m_room_manager;
+  std::unique_ptr<Sqlite3> db;
   std::unordered_map<int, std::unique_ptr<RoomThread>> m_threads;
 
   std::unique_ptr<Shell> m_shell;

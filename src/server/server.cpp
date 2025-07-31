@@ -36,6 +36,8 @@ Server::Server() : m_socket { nullptr } {
 
   reloadConfig();
 
+  db = std::unique_ptr<Sqlite3>(new Sqlite3);
+
   /*
   db = new Sqlite3;
   md5 = calcFileMD5();
@@ -122,6 +124,10 @@ RoomManager &Server::room_manager() {
   return *m_room_manager;
 }
 
+Sqlite3 &Server::getDatabase() {
+  return *db;
+}
+
 Shell &Server::shell() {
   return *m_shell;
 }
@@ -173,8 +179,6 @@ std::thread::id Server::mainThreadId() const {
 }
 
 /*
-
-Sqlite3 *Server::getDatabase() { return db; }
 
 void Server::broadcast(const QByteArray &command, const QByteArray &jsonData) {
   for (Player *p : players.values()) {

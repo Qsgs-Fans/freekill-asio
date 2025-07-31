@@ -28,8 +28,6 @@ private:
   bool loadSetupData(Packet &packet);
   bool checkVersion();
 
-  std::unique_ptr<Sqlite3> db;
-
   bool checkIfUuidNotBanned();
   bool checkMd5();
   std::map<std::string, std::string> checkPassword();
