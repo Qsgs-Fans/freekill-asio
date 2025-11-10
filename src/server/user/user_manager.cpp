@@ -187,13 +187,13 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
 
   if (all_info) {
     auto &conf = Server::instance().config();
-   
+
     // 经典环节
     std::string toSend;
     toSend.reserve(1024);
     u_char buf[10]; size_t buflen;
 
-    toSend += "\x84"; // array(3)
+    toSend += "\x83"; // array(3)
 
     // arr[0] = motd
     buflen = cbor_encode_uint(conf.motd.size(), buf, 10);
@@ -212,12 +212,27 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
       toSend += s;
     }
 
-    // arr[2] = enableBots
-    buflen = cbor_encode_bool(conf.enableBots, buf, 10);
+    static const std::vector<std::string> supportedFeatures = {
+      "AddRobot",           // 自古可以加机器人
+      "ChangeRoom",         // v0.1.1: 房间配置修改功能
+    };
+    auto enabledFeaturesView = supportedFeatures
+      | std::views::filter([&](const std::string& f) {
+        return std::ranges::find(conf.disabledFeatures, f) == conf.disabledFeatures.end();
+      });
+    std::vector<std::string> enabledFeatures {
+      enabledFeaturesView.begin(), enabledFeaturesView.end() };
+
+    // arr[2] = enableFeatures
+    buflen = cbor_encode_uint(enabledFeatures.size(), buf, 10);
+    buf[0] += 0x80;
     toSend += std::string_view { (char*)buf, buflen };
-    //arr[3] = enableChangeRoom
-    buflen = cbor_encode_bool(conf.enableChangeRoom, buf, 10);
-    toSend += std::string_view { (char*)buf, buflen };
+    for (auto &s : enabledFeatures) {
+      buflen = cbor_encode_uint(s.size(), buf, 10);
+      buf[0] += 0x60;
+      toSend += std::string_view { (char*)buf, buflen };
+      toSend += s;
+    }
 
     player.doNotify("SetServerSettings", toSend);
   }

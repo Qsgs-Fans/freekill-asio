@@ -181,7 +181,7 @@ void PackMan::disablePack(const char *pack) {
   db->exec(
     fmt::format("UPDATE packages SET enabled = 0 WHERE name = '{}';", pack));
 
-  auto it = std::find(disabled_packs.begin(), disabled_packs.end(), pack);
+  auto it = std::ranges::find(disabled_packs, pack);
   if (it == disabled_packs.end())
     disabled_packs.push_back(pack);
 }

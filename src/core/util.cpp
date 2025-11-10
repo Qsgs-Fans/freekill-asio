@@ -102,7 +102,7 @@ void writePkgsMD5(std::ostringstream &dest, const std::string &base_dir, const s
 
     // Skip .disabled directories
     if (dirname.ends_with(".disabled")) continue;
-    if (std::find(disabled.begin(), disabled.end(), dirname) != disabled.end()) continue;
+    if (std::ranges::find(disabled, dirname) != disabled.end()) continue;
     if (builtinPkgs.contains(dirname)) continue;
 
     writeDirMD5(dest, entry.path().string(), std::regex { filter_pattern });
@@ -114,7 +114,7 @@ std::string calcFileMD5() {
   const std::string flist_path = "flist.txt";
 
   std::ostringstream flist;
-  
+
   writePkgsMD5(flist, "packages", "^.*\\.lua$");
   writePkgsMD5(flist, "packages", "^.*\\.qml$");
   writePkgsMD5(flist, "packages", "^.*\\.js$");

@@ -239,12 +239,30 @@ void ServerConfig::loadConf(const char* jsonStr) {
     }
   }
 
+  if ((item = cJSON_GetObjectItem(root, "disabledFeatures")) && cJSON_IsArray(item)) {
+    int size = cJSON_GetArraySize(item);
+    disabledFeatures.clear();
+    for (int i = 0; i < size; ++i) {
+      cJSON* pack = cJSON_GetArrayItem(item, i);
+      if (cJSON_IsString(pack) && pack->valuestring) {
+        disabledFeatures.push_back(pack->valuestring);
+      }
+    }
+  }
+
+  // 兼容一下之前的配置信息
   if ((item = cJSON_GetObjectItem(root, "enableBots")) && cJSON_IsBool(item)) {
-    enableBots = cJSON_IsTrue(item);
+    auto enableBots = cJSON_IsTrue(item);
+    if (!enableBots && std::ranges::find(disabledFeatures, "AddRobot") == disabledFeatures.end()) {
+      disabledFeatures.push_back("AddRobot");
+    }
   }
 
   if ((item = cJSON_GetObjectItem(root, "enableChangeRoom")) && cJSON_IsBool(item)) {
-    enableChangeRoom = cJSON_IsTrue(item);
+    auto enableChangeRoom = cJSON_IsTrue(item);
+    if (!enableChangeRoom && std::ranges::find(disabledFeatures, "ChangeRoom") == disabledFeatures.end()) {
+      disabledFeatures.push_back("ChangeRoom");
+    }
   }
 
   if ((item = cJSON_GetObjectItem(root, "enableWhitelist")) && cJSON_IsBool(item)) {
@@ -317,7 +335,7 @@ void Server::temporarilyBan(int playerId) {
   // Server不会析构，先不weak
   timer->async_wait([this, addr, timer](const std::error_code& ec){
     if (!ec) {
-      auto it = std::find(temp_banlist.begin(), temp_banlist.end(), addr);
+      auto it = std::ranges::find(temp_banlist, addr);
       if (it != temp_banlist.end())
         temp_banlist.erase(it);
     } else {
@@ -328,7 +346,7 @@ void Server::temporarilyBan(int playerId) {
 }
 
 bool Server::isTempBanned(const std::string_view &addr) const {
-  return (std::find(temp_banlist.begin(), temp_banlist.end(), addr) != temp_banlist.end());
+  return (std::ranges::find(temp_banlist, addr) != temp_banlist.end());
 }
 
 int Server::isMuted(int playerId) const {

@@ -14,6 +14,8 @@
 
 namespace asio = boost::asio;
 
+using std::ranges::find;
+
 Room::Room() {
   static int nextRoomId = 1;
   id = nextRoomId++;
@@ -278,7 +280,7 @@ void Room::removePlayer(Player &player) {
     return;
   }
 
-  auto it = std::find(players.begin(), players.end(), player.getConnId());
+  auto it = find(players, player.getConnId());
   if (it == players.end()) return;
 
   auto &um = Server::instance().user_manager();
@@ -346,7 +348,7 @@ void Room::addObserver(Player &player) {
 }
 
 void Room::removeObserver(Player &player) {
-  if (auto it = std::find(observers.begin(), observers.end(), player.getConnId()); it != observers.end()) {
+  if (auto it = find(observers, player.getConnId()); it != observers.end()) {
     observers.erase(it);
   }
 
@@ -365,7 +367,7 @@ void Room::removeObserver(Player &player) {
 }
 
 bool Room::hasObserver(Player &player) const {
-  return std::find(observers.begin(), observers.end(), player.getConnId()) != observers.end();
+  return find(observers, player.getConnId()) != observers.end();
 }
 
 int Room::getTimeout() const { return timeout; }
@@ -425,7 +427,7 @@ void Room::_checkAbandoned(CheckAbandonReason reason) {
     }
 
     players.erase(std::remove_if(players.begin(), players.end(), [&](int x) {
-      return std::find(to_delete.begin(), to_delete.end(), x) != to_delete.end();
+      return find(to_delete, x) != to_delete.end();
     }), players.end());
   }
 
@@ -501,7 +503,7 @@ void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::
 
   auto &um = Server::instance().user_manager();
   auto player = um.findPlayer(id).lock();
-  if (player && std::find(players.begin(), players.end(), player->getConnId()) != players.end()) {
+  if (player && find(players, player->getConnId()) != players.end()) {
     player->setLastGameMode(std::string(mode));
     updatePlayerGameData(id, mode);
   }
@@ -760,14 +762,14 @@ void Room::addRejectId(int id) {
 }
 
 void Room::removeRejectId(int id) {
-  if (auto it = std::find(rejected_players.begin(), rejected_players.end(), id);
+  if (auto it = find(rejected_players, id);
     it != rejected_players.end()) {
     rejected_players.erase(it);
   }
 }
 
 bool Room::isRejected(Player &player) const {
-  return std::find(rejected_players.begin(), rejected_players.end(), player.getId()) != rejected_players.end();
+  return find(rejected_players, player.getId()) != rejected_players.end();
 }
 
 void Room::setPlayerReady(Player &p, bool ready) {
@@ -790,7 +792,8 @@ void Room::quitRoom(Player &player, const Packet &) {
 }
 
 void Room::addRobotRequest(Player &player, const Packet &) {
-  if (Server::instance().config().enableBots)
+  auto &conf = Server::instance().config();
+  if (find(conf.disabledFeatures, "AddRobot") == conf.disabledFeatures.end())
     addRobot(player);
 }
 
@@ -898,7 +901,7 @@ void Room::changeRoom(Player &player, const Packet &packet) {
     if (p->getRouter().getSocket() != nullptr ){
       //先移出去再进来
       p->setReady(false);
-      auto it = std::find(players.begin(), players.end(), p->getConnId());
+      auto it = find(players, p->getConnId());
       players.erase(it);
       rm.lobby().lock()->addPlayer(*p);
       doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ p->getId() }));

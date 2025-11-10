@@ -20,8 +20,7 @@ struct ServerConfig {
   int tempBanTime = 0;
   std::string motd = "Welcome!";
   std::vector<std::string> hiddenPacks;
-  bool enableBots = true;
-  bool enableChangeRoom = true;
+  std::vector<std::string> disabledFeatures;
   bool enableWhitelist = false;
   int roomCountPerThread = 2000;
   int maxPlayersPerDevice = 1000;

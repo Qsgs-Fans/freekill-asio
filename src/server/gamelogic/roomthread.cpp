@@ -219,7 +219,7 @@ void RoomThread::addRoom(int roomId) {
 }
 
 void RoomThread::removeRoom(int roomId) {
-  if (auto it = std::find(m_rooms.begin(), m_rooms.end(), roomId); it != m_rooms.end()) {
+  if (auto it = std::ranges::find(m_rooms, roomId); it != m_rooms.end()) {
     m_rooms.erase(it);
   }
 }

@@ -42,6 +42,9 @@
 #include <regex>
 #include <random>
 
+// C++20 std
+#include <ranges>
+
 // spdlog
 #include <spdlog/spdlog.h>
 

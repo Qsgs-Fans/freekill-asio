@@ -59,7 +59,7 @@ static void show_usage(const char *prog) {
     "  -p, --port <port>       Specify a port number to listen on.\n"
     "\n"
     "See more at our documentation: \n"
-    "<https://fkbook-all-in-one.readthedocs.io/zh-cn/latest/server/index.html>.\n",
+    "<https://fkbook-all-in-one.readthedocs.io/zh-cn/latest/for-server-hosts/index.html>.\n",
 
     prog
   );
