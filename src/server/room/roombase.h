@@ -22,6 +22,7 @@ public:
                          const std::string_view &command, const std::string_view &cborData);
 
   void chat(Player &sender, const Packet &);
+  void readGlobalSaveState(Player &sender, const Packet &);
 
   virtual void addPlayer(Player &player) = 0;
   virtual void removePlayer(Player &player) = 0;

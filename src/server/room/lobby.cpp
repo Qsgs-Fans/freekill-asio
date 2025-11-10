@@ -312,6 +312,7 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     {"ObserveRoom", &Lobby::observeRoom},
     {"RefreshRoomList", &Lobby::refreshRoomList},
     {"Chat", &Lobby::chat},
+    {"ReadGlobalSaveState", &Lobby::readGlobalSaveState},
   };
 
   auto iter = lobby_actions.find(packet.command);

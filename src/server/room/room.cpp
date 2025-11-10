@@ -926,6 +926,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"Trust", &Room::trust},
     {"ChangeRoom", &Room::changeRoom},
     {"Chat", &Room::chat},
+    {"ReadGlobalSaveState", &Room::readGlobalSaveState},
   };
   if (packet.command == "PushRequest") {
     std::string_view sv;

@@ -8,6 +8,7 @@
 #include "server/user/user_manager.h"
 #include "server/user/player.h"
 #include "network/client_socket.h"
+#include "core/c-wrapper.h"
 
 bool RoomBase::isLobby() const {
   return dynamic_cast<const Lobby *>(this) != nullptr;
@@ -122,4 +123,27 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
         isLobby() ? "Lobby" : fmt::format("#{}", dynamic_cast<Room *>(this)->getId()),
         sender.getScreenName(),
         msg);
+}
+
+void RoomBase::readGlobalSaveState(Player &sender, const Packet &packet) {
+  // Packet内容：一个string
+  auto cbuf = (cbor_data)packet.cborData.data();
+  auto len = packet.cborData.size();
+  struct cbor_decoder_result decode_result;
+
+  std::string_view key;
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &key);
+  if (decode_result.read == 0) return;
+
+  auto val = sender.getGlobalSaveState(key);
+
+  // 包装成cbor string后原样发回
+  u_char buf[10]; size_t buflen;
+  buflen = cbor_encode_uint(val.size(), buf, 10);
+  buf[0] += 0x60;
+  std::string toSend;
+  toSend.reserve(val.size() + 10);
+  toSend += std::string_view { (char*)buf, buflen };
+  toSend += val;
+  sender.doNotify("ReadGlobalSaveState", toSend);
 }
