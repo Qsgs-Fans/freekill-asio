@@ -23,8 +23,8 @@ void ClientSocket::start() {
 }
 
 awaitable<void> ClientSocket::reader() {
-  // 下面那个死循环的持续周期可能比this的生命周期长，所以续一下
-  auto self { shared_from_this() };
+  // 下面那个死循环的持续周期可能比this的生命周期长，所以需要挂个检测
+  auto weak { weak_from_this() };
 
   for (;;) {
     boost::system::error_code ec;
@@ -33,6 +33,9 @@ awaitable<void> ClientSocket::reader() {
 
     if (ec) break;
 
+    auto self = weak.lock();
+    if (!self) break;
+
     auto stat = self->handleBuffer(length);
     if (stat == CBOR_DECODER_ERROR) {
       spdlog::warn("Malformed data from client {}", self->peerAddress());
@@ -40,10 +43,12 @@ awaitable<void> ClientSocket::reader() {
     }
   }
 
-  self->disconnected_callback();
+  if (auto self = weak.lock(); self) {
+    self->disconnected_callback();
 
-  self->set_message_got_callback([](Packet &){});
-  self->set_disconnected_callback([]{});
+    self->set_message_got_callback([](Packet &){});
+    self->set_disconnected_callback([]{});
+  }
 }
 
 asio::ip::tcp::socket &ClientSocket::socket() {

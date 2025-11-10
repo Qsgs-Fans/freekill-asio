@@ -841,14 +841,14 @@ void Room::trust(Player &player, const Packet &pkt) {
   }
 }
 
-//改变房间配置
-void Room::changeroom(Player &player, const Packet &packet) {
+// 改变房间配置
+void Room::changeRoom(Player &player, const Packet &packet) {
   // 检查权限：只有房主才能修改房间配置
   if (player.getConnId() != m_owner_conn_id) {
     player.doNotify("ErrorMsg", "只有房主才能修改房间配置");
     return;
   }
-  auto currentplayers =getPlayers();
+  auto currentplayers = getPlayers();
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();
   std::string_view newname;
@@ -908,7 +908,6 @@ void Room::changeroom(Player &player, const Packet &packet) {
   }
 }
 
-
 void Room::ready(Player &player, const Packet &) {
   setPlayerReady(player, !player.isReady());
 }
@@ -937,7 +936,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"Ready", &Room::ready},
     {"StartGame", &Room::startGame},
     {"Trust", &Room::trust},
-    {"ChangeRoom", &Room::changeroom},
+    {"ChangeRoom", &Room::changeRoom},
     {"Chat", &Room::chat},
   };
   if (packet.command == "PushRequest") {
