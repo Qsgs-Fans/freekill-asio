@@ -893,22 +893,7 @@ void Room::changeRoom(Player &player, const Packet &packet) {
   setTimeout(newtimeout);
   setSettings(newsettings);
 
-  auto &rm = Server::instance().room_manager();
-  auto &um = Server::instance().user_manager();
-  for (auto pid : currentplayers) {
-    auto p = um.findPlayerByConnId(pid).lock();
-    if (!p) continue;
-    if (p->getRouter().getSocket() != nullptr ){
-      //先移出去再进来
-      p->setReady(false);
-      auto it = find(players, p->getConnId());
-      players.erase(it);
-      rm.lobby().lock()->addPlayer(*p);
-      doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ p->getId() }));
-
-      addPlayer(*p);
-    }
-  }
+  doBroadcastNotify(players, "ChangeRoom", packet.cborData);
 }
 
 void Room::ready(Player &player, const Packet &) {
