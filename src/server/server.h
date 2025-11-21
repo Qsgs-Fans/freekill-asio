@@ -11,6 +11,7 @@ class RoomThread;
 
 class Shell;
 class Sqlite3;
+class DbThread;
 
 struct ServerConfig {
   std::vector<std::string> banWords;
@@ -53,7 +54,7 @@ public:
   UserManager &user_manager();
   RoomManager &room_manager();
   Sqlite3 &database();
-  Sqlite3 &gameDatabase();  // gamedb的getter
+  DbThread &gameDatabase();  // gamedb的getter
   Shell &shell();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
@@ -90,7 +91,7 @@ private:
   std::unique_ptr<ServerSocket> m_socket;
 
   std::unique_ptr<Sqlite3> db;
-  std::unique_ptr<Sqlite3> gamedb;  // 存档变量
+  std::unique_ptr<DbThread> gamedb;
   std::mutex transaction_mutex;
 
   std::unordered_map<int, std::shared_ptr<RoomThread>> m_threads;

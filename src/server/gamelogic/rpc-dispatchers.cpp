@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "server/gamelogic/roomthread.h"
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/server.h"
 #include "server/user/user_manager.h"
@@ -451,8 +452,14 @@ static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  player->saveState(jsonData);
-  return { true, nullVal };
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->saveState(jsonData, [room] {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), "query_done");
+  });
+  return { true, true };
 }
 
 static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
@@ -469,8 +476,14 @@ static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  std::string result = player->getSaveState();
-  return { true, result };
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->getSaveState([room](std::string result) {;
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), result.c_str());
+  });
+  return { true, true };
 }
 
 static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
@@ -491,8 +504,14 @@ static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  player->saveGlobalState(key, jsonData);
-  return { true, nullVal };
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->saveGlobalState(key, jsonData, [room] {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), "query_done");
+  });
+  return { true, true };
 }
 
 static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
@@ -511,8 +530,14 @@ static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  std::string result = player->getGlobalSaveState(key);
-  return { true, result };
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->getGlobalSaveState(key, [room](std::string result) {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), result.c_str());
+  });
+  return { true, true };
 }
 
 

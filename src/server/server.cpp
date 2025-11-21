@@ -15,6 +15,8 @@
 
 #include "server/admin/shell.h"
 
+#include "server/io/dbthread.hpp"
+
 #include "core/c-wrapper.h"
 #include "core/util.h"
 #include "core/packman.h"
@@ -41,7 +43,6 @@ Server::Server() : m_socket { nullptr } {
   m_room_manager = std::make_unique<RoomManager>();
 
   db = std::make_unique<Sqlite3>();
-  gamedb = std::make_unique<Sqlite3>("./server/game.db", "./server/gamedb_init.sql");  // 初始化
 
   reloadConfig();
   refreshMd5();
@@ -99,6 +100,10 @@ void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
   m_shell = std::make_unique<Shell>();
   m_shell->start();
 
+  auto gamedb = std::make_unique<Sqlite3>("./server/game.db", "./server/gamedb_init.sql");  // 初始化
+  this->gamedb = std::make_unique<DbThread>(*main_io_ctx, std::move(gamedb));
+  this->gamedb->start();
+
   // FIXME 此处仅供测试用
   // (new HttpListener(tcp::endpoint { tcp::v6(), 9000 }))->start();
 }
@@ -128,7 +133,7 @@ Sqlite3 &Server::database() {
   return *db;
 }
 
-Sqlite3 &Server::gameDatabase() {
+DbThread &Server::gameDatabase() {
   return *gamedb;
 }
 

@@ -13,9 +13,7 @@
 #include "server/rpc-lua/rpc-lua.h"
 
 #include <spdlog/spdlog.h>
-#include <sys/eventfd.h>
 #include <thread>
-#include <unistd.h>
 
 namespace asio = boost::asio;
 using namespace std::literals;
@@ -98,28 +96,10 @@ asio::io_context &RoomThread::context() {
 }
 
 void RoomThread::start() {
-  evt_fd = ::eventfd(0, 0);
   m_thread = std::thread([&] {
-    // 直到调用quit()写evt_fd之前都让他一直等下去
-    asio::posix::stream_descriptor eventfd_desc(io_ctx, evt_fd);
-    char buf[16];
-    eventfd_desc.async_read_some(
-      asio::buffer(buf, 16),
-      [&](std::error_code err, std::size_t length) {
-        if (!err) {
-          ::close(evt_fd);
-          spdlog::info("quit() called, eventfd is closed");
-        }
-      });
-
+    auto guard = boost::asio::make_work_guard(io_ctx);
     io_ctx.run();
   });
-}
-
-void RoomThread::quit() {
-  if (fcntl(evt_fd, F_GETFD) == -1) return;
-  uint64_t value = 1;
-  ::write(evt_fd, &value, sizeof(value));
 }
 
 void RoomThread::shutdown() {

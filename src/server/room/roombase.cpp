@@ -135,15 +135,19 @@ void RoomBase::readGlobalSaveState(Player &sender, const Packet &packet) {
   decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &key);
   if (decode_result.read == 0) return;
 
-  auto val = sender.getGlobalSaveState(key);
+  sender.getGlobalSaveState(key, [weak_player = sender.weak_from_this()](std::string val) {
+    auto p = weak_player.lock();
+    if (!p) return;
+    auto &sender = *p;
 
-  // 包装成cbor string后原样发回
-  u_char buf[10]; size_t buflen;
-  buflen = cbor_encode_uint(val.size(), buf, 10);
-  buf[0] += 0x60;
-  std::string toSend;
-  toSend.reserve(val.size() + 10);
-  toSend += std::string_view { (char*)buf, buflen };
-  toSend += val;
-  sender.doNotify("ReadGlobalSaveState", toSend);
+    // 包装成cbor string后原样发回
+    u_char buf[10]; size_t buflen;
+    buflen = cbor_encode_uint(val.size(), buf, 10);
+    buf[0] += 0x60;
+    std::string toSend;
+    toSend.reserve(val.size() + 10);
+    toSend += std::string_view { (char*)buf, buflen };
+    toSend += val;
+    sender.doNotify("ReadGlobalSaveState", toSend);
+  });
 }

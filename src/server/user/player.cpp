@@ -8,6 +8,7 @@
 #include "server/room/roombase.h"
 #include "server/room/room.h"
 #include "server/room/lobby.h"
+#include "server/io/dbthread.hpp"
 #include "network/client_socket.h"
 #include "network/router.h"
 
@@ -375,7 +376,7 @@ void Player::onReadyChanged() {
                           Cbor::encodeArray({ id, ready }));
 }
 
-void Player::saveState(std::string_view jsonData) {
+void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
   if (id < 0) return;
 
   auto room_base = getRoom().lock();
@@ -393,38 +394,40 @@ void Player::saveState(std::string_view jsonData) {
   auto &gamedb = Server::instance().gameDatabase();
   auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", id, mode, hexData);
 
-  gamedb.exec(sql);
+  gamedb.async_exec(sql, cb);
 }
 
-std::string Player::getSaveState() {
+void Player::getSaveState(std::function<void(std::string)> &&cb) {
   auto room_base = getRoom().lock();
-  if (!room_base) return "{}";
   auto room = dynamic_pointer_cast<Room>(room_base);
-  if (!room) return "{}";
+  if (!room) {
+    return cb("{}");
+  }
   std::string mode { room->getGameMode() };
 
   if (!Sqlite3::checkString(mode)) {
     spdlog::error("Invalid mode string for readSaveState: {}", mode);
-    return "{}";
+    return cb("{}");
   }
 
   auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", id, mode);
 
-  auto result = Server::instance().gameDatabase().select(sql);
-  if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
-    return "{}";
-  }
+  Server::instance().gameDatabase().async_select(sql, [cb](Sqlite3::QueryResult result) {
+    if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+      return cb("{}");
+    }
 
-  const auto& data = result[0]["data"];
-  if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
-    return data;
-  }
+    const auto& data = result[0]["data"];
+    if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+      return cb(data);
+    }
 
-  spdlog::warn("Returned data is not valid JSON: {}", data);
-  return "{}";
+    spdlog::warn("Returned data is not valid JSON: {}", data);
+    return cb("{}");
+  });
 }
 
-void Player::saveGlobalState(std::string_view key, std::string_view jsonData) {
+void Player::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
   if (id < 0) return;
 
   if (!Sqlite3::checkString(key)) {
@@ -436,27 +439,28 @@ void Player::saveGlobalState(std::string_view key, std::string_view jsonData) {
   auto &gamedb = Server::instance().gameDatabase();
   auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", id, key, hexData);
   
-  gamedb.exec(sql);
+  gamedb.async_exec(sql, cb);
 }
 
-std::string Player::getGlobalSaveState(std::string_view key) {
+void Player::getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&cb) {
   if (!Sqlite3::checkString(key)) {
     spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
-    return "{}";
+    return cb("{}");
   }
 
   auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", id, key);
-  
-  auto result = Server::instance().gameDatabase().select(sql);
-  if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
-    return "{}";
-  }
 
-  const auto& data = result[0]["data"];
-  if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
-    return data;
-  }
+  Server::instance().gameDatabase().async_select(sql, [cb](Sqlite3::QueryResult result) {
+    if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+      return cb("{}");
+    }
 
-  spdlog::warn("Returned data is not valid JSON: {}", data);
-  return "{}";
+    const auto& data = result[0]["data"];
+    if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+      return cb(data);
+    }
+
+    spdlog::warn("Returned data is not valid JSON: {}", data);
+    return cb("{}");
+  });
 }

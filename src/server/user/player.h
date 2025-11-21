@@ -97,11 +97,11 @@ public:
   int getGameTime();
 
   // 模式存档
-  void saveState(std::string_view jsonData);
-  std::string getSaveState();
+  void saveState(std::string_view jsonData, std::function<void()> &&);
+  void getSaveState(std::function<void(std::string)> &&);
   // 全局存档
-  void saveGlobalState(std::string_view key, std::string_view jsonData);
-  std::string getGlobalSaveState(std::string_view key);
+  void saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&);
+  void getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&);
 
 private:
   int id = 0;

@@ -17,8 +17,6 @@ public:
   int id() const;
   io_context &context();
 
-  void quit();
-
   // signal emitters
   void pushRequest(const std::string &req);
   void delay(int roomId, int ms);
@@ -47,7 +45,6 @@ public:
 private:
   int m_id = 0;
 
-  int evt_fd;
   io_context io_ctx;
   std::thread m_thread;
 
