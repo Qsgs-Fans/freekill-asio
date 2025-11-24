@@ -46,30 +46,22 @@ private:
 namespace asio = boost::asio;
 
 template<typename T>
-void DbThread::async_select(const std::string &sql, T &&token) {
-  using handler_type = typename asio::async_result<T>::completion_handler_type;
-  handler_type handler(std::forward<T>(token));
-  asio::async_result<T> result(handler);
-
-  asio::post(worker_io, [this, sql, handler] {
+void DbThread::async_select(const std::string &sql, T &&handler) {
+  asio::post(worker_io, [this, sql, handler = std::forward<T>(handler)] {
     auto ret = db->select(sql);
 
-    asio::post(main_io, [handler, ret] {
+    asio::post(main_io, [handler = std::move(handler), ret] {
       handler(ret);
     });
   });
 }
 
 template<typename T>
-void DbThread::async_exec(const std::string &sql, T &&token) {
-  using handler_type = typename asio::async_result<T>::completion_handler_type;
-  handler_type handler(std::forward<T>(token));
-  asio::async_result<T> result(handler);
-
-  asio::post(worker_io, [this, sql, handler] {
+void DbThread::async_exec(const std::string &sql, T &&handler) {
+  asio::post(worker_io, [this, sql, handler = std::forward<T>(handler)] {
     db->exec(sql);
 
-    asio::post(main_io, [handler] {
+    asio::post(main_io, [handler = std::move(handler)] {
       handler();
     });
   });
