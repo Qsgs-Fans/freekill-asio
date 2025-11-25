@@ -41,5 +41,5 @@ target_link_libraries(freekill-asio PRIVATE
   git2
   spdlog::spdlog
   readline
-  cjson
+  nlohmann_json::nlohmann_json
 )

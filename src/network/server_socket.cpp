@@ -6,13 +6,15 @@
 #include "server/server.h"
 #include "server/user/user_manager.h"
 
-#include <cjson/cJSON.h>
+#include <nlohmann/json.hpp>
 
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
 using asio::use_awaitable;
 using asio::redirect_error;
+
+using json = nlohmann::json;
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
   m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
@@ -63,21 +65,19 @@ awaitable<void> ServerSocket::udpListener() {
       auto &conf = Server::instance().config();
       auto &um = Server::instance().user_manager();
 
-      cJSON *jsonArray = cJSON_CreateArray();
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateString("0.5.14+"));
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.iconUrl.c_str()));
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.description.c_str()));
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateNumber(conf.capacity));
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateNumber(um.getPlayers().size()));
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateString(std::string(sv).substr(12).c_str()));
+      auto json = nlohmann::json {
+        "0.5.14+",
+        conf.iconUrl,
+        conf.description,
+        conf.capacity,
+        um.getPlayers().size(),
+        std::string(sv).substr(12)
+      }.dump();
 
-      char *json = cJSON_PrintUnformatted(jsonArray);
       m_udp_socket.async_send_to(
-        asio::const_buffer(json, strlen(json)), udp_remote_end, detached);
+        asio::const_buffer(json.data(), json.size()), udp_remote_end, detached);
 
       // spdlog::debug("TX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), json);
-      cJSON_Delete(jsonArray);
-      free(json);
     }
   }
 }

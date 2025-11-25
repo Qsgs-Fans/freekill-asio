@@ -15,16 +15,6 @@ set_target_properties(OpenSSL::Crypto PROPERTIES
   IMPORTED_LOCATION /usr/lib/libcrypto.a
 )
 
-add_library(cjson STATIC IMPORTED)
-set_target_properties(cjson PROPERTIES
-  IMPORTED_LOCATION /usr/lib/libcjson.a
-)
-
-add_library(cjson-static STATIC IMPORTED)
-set_target_properties(cjson-static PROPERTIES
-  IMPORTED_LOCATION /usr/lib/libcjson.a
-)
-
 add_library(readline STATIC IMPORTED)
 set_target_properties(readline PROPERTIES
   IMPORTED_LOCATION /usr/lib/libreadline.a

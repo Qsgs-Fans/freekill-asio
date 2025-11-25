@@ -45,7 +45,7 @@ $ ./freekill-asio
 
 ```sh
 $ sudo apt install git g++ cmake pkg-config
-$ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-dev libgit2-dev libreadline-dev libspdlog-dev
+$ sudo apt install libasio-dev libssl-dev libcbor-dev nlohmann-json3-dev libsqlite3-dev libgit2-dev libreadline-dev libspdlog-dev
 ```
 
 其余版本较新的发行版（如Arch、Kali等）安装依赖方式与此大同小异。
@@ -62,7 +62,7 @@ $ sudo apt install lua5.4 lua-socket lua-filesystem
 
 ```sh
 $ apk add git cmake build-base
-$ apk add sqlite-dev readline-dev cjson-dev spdlog-dev boost-dev libgit2-dev libcbor-dev cjson-static
+$ apk add sqlite-dev readline-dev nlohmann-json spdlog-dev boost-dev libgit2-dev libcbor-dev
 $ apk add lua5.4 lua5.4-socket lua5.4-filesystem
 ```
 

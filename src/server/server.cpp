@@ -21,13 +21,15 @@
 #include "core/util.h"
 #include "core/packman.h"
 
-#include <cjson/cJSON.h>
+#include <nlohmann/json.hpp>
 
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
 using asio::use_awaitable;
 using asio::redirect_error;
+
+using json = nlohmann::json;
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
@@ -194,95 +196,43 @@ void Server::broadcast(const std::string_view &command, const std::string_view &
 }
 
 void ServerConfig::loadConf(const char* jsonStr) {
-  cJSON* root = cJSON_Parse(jsonStr);
-  if (!root) {
-    spdlog::error("JSON parse error: {}", cJSON_GetErrorPtr());
+  json root;
+
+  try {
+    root = nlohmann::json::parse(jsonStr);
+  } catch (const std::exception& e) {
+    spdlog::error("JSON parse error: {}", e.what());
     return;
   }
 
-  cJSON* item = nullptr;
-
-  if ((item = cJSON_GetObjectItem(root, "banWords")) && cJSON_IsArray(item)) {
-    int size = cJSON_GetArraySize(item);
-    banWords.clear();
-    for (int i = 0; i < size; ++i) {
-      cJSON* word = cJSON_GetArrayItem(item, i);
-      if (cJSON_IsString(word) && word->valuestring) {
-        banWords.push_back(word->valuestring);
-      }
+  static auto loadStrVec = [&](auto& dst, const char* key) {
+    if (root.contains(key) && root[key].is_array()) {
+      dst.clear();
+      for (auto& v : root[key]) if (v.is_string()) dst.push_back(v.get<std::string>());
     }
-  }
+  };
 
-  if ((item = cJSON_GetObjectItem(root, "description")) && cJSON_IsString(item) && item->valuestring) {
-    description = item->valuestring;
-  }
+  loadStrVec(banWords, "banWords");
+  loadStrVec(hiddenPacks, "hiddenPacks");
+  loadStrVec(disabledFeatures, "disabledFeatures");
 
-  if ((item = cJSON_GetObjectItem(root, "iconUrl")) && cJSON_IsString(item) && item->valuestring) {
-    iconUrl = item->valuestring;
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "capacity")) && cJSON_IsNumber(item)) {
-    capacity = static_cast<int>(item->valuedouble);
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "tempBanTime")) && cJSON_IsNumber(item)) {
-    tempBanTime = static_cast<int>(item->valuedouble);
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "motd")) && cJSON_IsString(item) && item->valuestring) {
-    motd = item->valuestring;
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "hiddenPacks")) && cJSON_IsArray(item)) {
-    int size = cJSON_GetArraySize(item);
-    hiddenPacks.clear();
-    for (int i = 0; i < size; ++i) {
-      cJSON* pack = cJSON_GetArrayItem(item, i);
-      if (cJSON_IsString(pack) && pack->valuestring) {
-        hiddenPacks.push_back(pack->valuestring);
-      }
-    }
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "disabledFeatures")) && cJSON_IsArray(item)) {
-    int size = cJSON_GetArraySize(item);
-    disabledFeatures.clear();
-    for (int i = 0; i < size; ++i) {
-      cJSON* pack = cJSON_GetArrayItem(item, i);
-      if (cJSON_IsString(pack) && pack->valuestring) {
-        disabledFeatures.push_back(pack->valuestring);
-      }
-    }
-  }
+  description         = root.value("description", description);
+  iconUrl             = root.value("iconUrl", iconUrl);
+  capacity            = root.value("capacity", capacity);
+  tempBanTime         = root.value("tempBanTime", tempBanTime);
+  motd                = root.value("motd", motd);
+  roomCountPerThread  = root.value("roomCountPerThread", roomCountPerThread);
+  maxPlayersPerDevice = root.value("maxPlayersPerDevice", maxPlayersPerDevice);
+  enableWhitelist     = root.value("enableWhitelist", enableWhitelist);
 
   // 兼容一下之前的配置信息
-  if ((item = cJSON_GetObjectItem(root, "enableBots")) && cJSON_IsBool(item)) {
-    auto enableBots = cJSON_IsTrue(item);
-    if (!enableBots && std::ranges::find(disabledFeatures, "AddRobot") == disabledFeatures.end()) {
-      disabledFeatures.push_back("AddRobot");
-    }
-  }
+  if (root.value("enableBots", true) == false &&
+    std::ranges::find(disabledFeatures, "AddRobot") == disabledFeatures.end())
+    disabledFeatures.push_back("AddRobot");
 
-  if ((item = cJSON_GetObjectItem(root, "enableChangeRoom")) && cJSON_IsBool(item)) {
-    auto enableChangeRoom = cJSON_IsTrue(item);
-    if (!enableChangeRoom && std::ranges::find(disabledFeatures, "ChangeRoom") == disabledFeatures.end()) {
-      disabledFeatures.push_back("ChangeRoom");
-    }
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "enableWhitelist")) && cJSON_IsBool(item)) {
-    enableWhitelist = cJSON_IsTrue(item);
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "roomCountPerThread")) && cJSON_IsNumber(item)) {
-    roomCountPerThread = static_cast<int>(item->valuedouble);
-  }
-
-  if ((item = cJSON_GetObjectItem(root, "maxPlayersPerDevice")) && cJSON_IsNumber(item)) {
-    maxPlayersPerDevice = static_cast<int>(item->valuedouble);
-  }
-
-  cJSON_Delete(root);
+  if (root.value("enableChangeRoom", true) == false &&
+    std::ranges::find(disabledFeatures, "ChangeRoom") == disabledFeatures.end())
+    disabledFeatures.push_back("ChangeRoom");
 }
 
 void Server::reloadConfig() {

@@ -10,7 +10,9 @@
 
 #include <unistd.h>
 #include <sys/wait.h>
-#include <cjson/cJSON.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 using namespace JsonRpc;
 namespace asio = boost::asio;
@@ -444,14 +446,8 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
     }
 
     auto disabled_packs = PackMan::instance().getDisabledPacks();
-    cJSON *json_array = cJSON_CreateArray();
-    for (const auto& pack : disabled_packs) {
-      cJSON_AddItemToArray(json_array, cJSON_CreateString(pack.c_str()));
-    }
-    char *json_string = cJSON_PrintUnformatted(json_array);
-    ::setenv("FK_DISABLED_PACKS", json_string, 1);
-    free(json_string);
-    cJSON_Delete(json_array);
+    auto json_string = json { disabled_packs }.dump();
+    ::setenv("FK_DISABLED_PACKS", json_string.c_str(), 1);
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
     ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
