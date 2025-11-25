@@ -25,6 +25,7 @@ void HttpListener::start() {
 }
 
 void HttpListener::run() {
+  pthread_setname_np(pthread_self(), "HttpListener");
   asio::co_spawn(io_ctx, listener(), asio::detached);
   io_ctx.run();
 }

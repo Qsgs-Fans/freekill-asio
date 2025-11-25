@@ -4,6 +4,7 @@
 // 目前仅用于gamedb
 
 #include "core/c-wrapper.h"
+#include <pthread.h>
 
 class DbThread {
 public:
@@ -22,6 +23,7 @@ public:
 
   void start() {
     m_thread = std::thread([&] {
+      pthread_setname_np(pthread_self(), "DbThread");
       auto guard = boost::asio::make_work_guard(worker_io);
       worker_io.run();
     });

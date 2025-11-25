@@ -21,6 +21,7 @@
 #include <sys/ioctl.h>
 #include <cstdio>
 #include <cstring>
+#include <pthread.h>
 
 namespace asio = boost::asio;
 
@@ -1091,6 +1092,8 @@ static char **fk_completion(const char* text, int start, int end) {
 }
 
 void Shell::run() {
+  pthread_setname_np(pthread_self(), "Shell");
+
   printf("\rfreekill-asio, Copyright (C) 2025, GNU GPL'd, by Notify et al.\n");
   printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
   printf(

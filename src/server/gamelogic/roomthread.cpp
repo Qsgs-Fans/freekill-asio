@@ -14,6 +14,7 @@
 
 #include <spdlog/spdlog.h>
 #include <thread>
+#include <pthread.h>
 
 namespace asio = boost::asio;
 using namespace std::literals;
@@ -97,6 +98,7 @@ asio::io_context &RoomThread::context() {
 
 void RoomThread::start() {
   m_thread = std::thread([&] {
+    pthread_setname_np(pthread_self(), "RoomThread");
     auto guard = boost::asio::make_work_guard(io_ctx);
     io_ctx.run();
   });
