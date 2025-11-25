@@ -49,7 +49,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
       }
     });
   };
-  wake_up_callback = [&](int roomId, const char *reason) {
+  wake_up_callback = [&](int roomId, const std::string reason) {
     // spdlog::debug("--> ResumeRoom {} {}", roomId, reason);
     L->call("ResumeRoom", roomId, std::string_view { reason });
   };
@@ -135,6 +135,10 @@ void RoomThread::pushRequest(const std::string &req) {
 
 void RoomThread::delay(int roomId, int ms) {
   emit_signal([=, this] { delay_callback(roomId, ms); });
+}
+
+void RoomThread::wakeUp(int roomId, std::string &reason) {
+  emit_signal([=, this] { wake_up_callback(roomId, reason); });
 }
 
 void RoomThread::wakeUp(int roomId, const char *reason) {

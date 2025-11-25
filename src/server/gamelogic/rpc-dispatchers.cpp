@@ -481,7 +481,7 @@ static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
   player->getSaveState([room](std::string result) {;
     if (!room) return;
     auto thread = room->thread().lock();
-    if (thread) thread->wakeUp(room->getId(), result.c_str());
+    if (thread) thread->wakeUp(room->getId(), result);
   });
   return { true, true };
 }
@@ -535,7 +535,7 @@ static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
   player->getGlobalSaveState(key, [room](std::string result) {
     if (!room) return;
     auto thread = room->thread().lock();
-    if (thread) thread->wakeUp(room->getId(), result.c_str());
+    if (thread) thread->wakeUp(room->getId(), result);
   });
   return { true, true };
 }

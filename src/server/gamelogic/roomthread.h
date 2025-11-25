@@ -20,6 +20,7 @@ public:
   // signal emitters
   void pushRequest(const std::string &req);
   void delay(int roomId, int ms);
+  void wakeUp(int roomId, std::string &reason);
   void wakeUp(int roomId, const char *reason);
 
   void setPlayerState(int connId, int pid, int roomId);
@@ -58,7 +59,7 @@ private:
   // signals
   std::function<void(const std::string req)> push_request_callback = nullptr;
   std::function<void(int roomId, int ms)> delay_callback = nullptr;
-  std::function<void(int roomId, const char* reason)> wake_up_callback = nullptr;
+  std::function<void(int roomId, const std::string reason)> wake_up_callback = nullptr;
   std::function<void(int connId, int pid, int roomId)> set_player_state_callback = nullptr;
   std::function<void(int connId, int roomId)> add_observer_callback = nullptr;
   std::function<void(int pid, int roomId)> remove_observer_callback = nullptr;
