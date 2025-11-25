@@ -377,17 +377,17 @@ void Player::onReadyChanged() {
 }
 
 void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
-  if (id < 0) return;
+  if (id < 0) return cb();
 
   auto room_base = getRoom().lock();
-  if (!room_base) return;
+  if (!room_base) return cb();
   auto room = dynamic_pointer_cast<Room>(room_base);
-  if (!room) return;
+  if (!room) return cb();
   std::string mode { room->getGameMode() };
 
   if (!Sqlite3::checkString(mode)) {
     spdlog::error("Invalid mode string for saveState: {}", mode);
-    return;
+    return cb();
   }
 
   auto hexData = toHex(jsonData);
@@ -428,11 +428,11 @@ void Player::getSaveState(std::function<void(std::string)> &&cb) {
 }
 
 void Player::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
-  if (id < 0) return;
+  if (id < 0) return cb();
 
   if (!Sqlite3::checkString(key)) {
     spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
-    return;
+    return cb();
   }
 
   auto hexData = toHex(jsonData);
