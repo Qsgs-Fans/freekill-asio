@@ -1007,3 +1007,23 @@ std::string_view Room::getSessionData() const {
 void Room::setSessionData(std::string_view json) {
   session_data = json;
 }
+
+Player &Room::addNpc() {
+  auto &um = Server::instance().user_manager();
+  auto &robot = um.createRobot();
+
+  players.push_back(robot.getConnId());
+  robot.setRoom(*this);
+
+  return robot;
+}
+
+void Room::removeNpc(Player &player) {
+  auto &um = Server::instance().user_manager();
+
+  auto it = find(players, player.getConnId());
+  if (it == players.end()) return;
+
+  players.erase(it);
+  um.deletePlayer(player);
+}

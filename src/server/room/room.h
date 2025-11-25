@@ -94,6 +94,14 @@ public:
   std::string_view getSessionData() const;
   void setSessionData(std::string_view json);
 
+  // 在游戏途中添加一个人机，和addRobot（游戏开始时加人机）有区别
+  // 只能加不能删除；添加的人机在gameOver时自然释放
+  // 这个函数单纯只在c++侧新建人机，不通知客户端，需要Lua逻辑另外完成
+  // 需要返回添加的那个人机
+  Player &addNpc();
+
+  void removeNpc(Player &);
+
 private:
   int m_thread_id = 0;
 

@@ -285,6 +285,12 @@ void Player::kick() {
 
 void Player::emitKicked() {
   auto &main_ctx = Server::instance().context();
+  if (main_ctx.stopped()) {
+    // 此时应当是Server析构中 踢人那一段
+    kick();
+    return;
+  }
+
   auto f = asio::dispatch(main_ctx, asio::use_future([weak = weak_from_this()] {
     auto c = weak.lock();
     if (c) c->kick();

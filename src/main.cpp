@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
   }
 
   initLogger();
+  spdlog::info("server is starting");
 
   asio::io_context io_ctx;
   Server::instance().listen(

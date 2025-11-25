@@ -36,6 +36,7 @@ static std::unique_ptr<Server> server_instance = nullptr;
 Server &Server::instance() {
   if (!server_instance) {
     server_instance = std::unique_ptr<Server>(new Server);
+    // spdlog::debug("[MEMORY] server_instance constructed");
   }
   return *server_instance;
 }
@@ -114,8 +115,21 @@ void Server::stop() {
   main_io_ctx->stop();
 }
 
+// 提前析构掉Player啥的，防止instance复活
+void Server::_clear() {
+  std::vector<std::shared_ptr<Player>> players;
+  for (auto &[_, p] : m_user_manager->getPlayers()) {
+    players.push_back(p);
+  }
+
+  for (auto &p : players) {
+    p->emitKicked();
+  }
+}
+
 void Server::destroy() {
   // spdlog::debug("[MEMORY] server_instance destructed");
+  server_instance->_clear();
   server_instance = nullptr;
 }
 
@@ -205,7 +219,7 @@ void ServerConfig::loadConf(const char* jsonStr) {
     return;
   }
 
-  static auto loadStrVec = [&](auto& dst, const char* key) {
+  auto loadStrVec = [&](auto& dst, const char* key) {
     if (root.contains(key) && root[key].is_array()) {
       dst.clear();
       for (auto& v : root[key]) if (v.is_string()) dst.push_back(v.get<std::string>());

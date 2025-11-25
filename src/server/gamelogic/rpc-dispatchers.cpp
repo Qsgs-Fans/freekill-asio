@@ -436,6 +436,50 @@ static _rpcRet _rpc_Room_setSessionData(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
+static _rpcRet _rpc_Room_addNpc(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
+    return { false, "Room not found"sv };
+  }
+
+  auto &bot = room->addNpc();
+
+  return { true, RpcDispatchers::getPlayerObject(bot) };
+}
+
+static _rpcRet _rpc_Room_removeNpc(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  int id = std::get<int>(packet.param1);
+  int pid = std::get<int>(packet.param2);
+
+  auto room = Server::instance().room_manager().findRoom(id).lock();
+  if (!room) {
+    return { false, "Room not found"sv };
+  }
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(pid).lock();
+  if (!player) {
+    return { false, "Player not found"sv };
+  }
+
+  room->removeNpc(*player);
+
+  return { true, nullVal };
+}
+
 static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
   if (!(packet.param_count == 2 &&
     std::holds_alternative<int>(packet.param1) &&
@@ -676,6 +720,8 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Room_getSessionId", _rpc_Room_getSessionId },
   { "Room_getSessionData", _rpc_Room_getSessionData },
   { "Room_setSessionData", _rpc_Room_setSessionData },
+  { "Room_addNpc", _rpc_Room_addNpc },
+  { "Room_removeNpc", _rpc_Room_removeNpc },
 
   { "RoomThread_getRoom", _rpc_RoomThread_getRoom },
 };

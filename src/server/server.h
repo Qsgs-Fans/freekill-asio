@@ -112,5 +112,6 @@ private:
 
   boost::asio::awaitable<void> heartbeat();
 
+  void _clear();
   void _refreshMd5();
 };

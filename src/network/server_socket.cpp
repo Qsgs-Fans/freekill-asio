@@ -19,7 +19,7 @@ using json = nlohmann::json;
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
   m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
 {
-  spdlog::info("server is ready to listen on {}", end.port());
+  spdlog::info("server is ready to listen on [{}]:{}", end.address().to_string(), end.port());
 }
 
 void ServerSocket::start() {
