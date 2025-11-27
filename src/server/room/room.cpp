@@ -894,6 +894,14 @@ void Room::changeRoom(Player &player, const Packet &packet) {
   setSettings(newsettings);
 
   doBroadcastNotify(players, "ChangeRoom", packet.cborData);
+
+  // 按官服 修改配置后所有人重新准备
+  auto &um = Server::instance().user_manager();
+  for (auto pid : players) {
+    auto p = um.findPlayerByConnId(pid).lock();
+    if (!p) continue;
+    p->setReady(false);
+  }
 }
 
 void Room::ready(Player &player, const Packet &) {
