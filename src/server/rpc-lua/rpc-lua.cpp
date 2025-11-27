@@ -35,8 +35,10 @@ static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param)
       file.write_some(asio::const_buffer(buf, buflen));
       file.write_some(asio::const_buffer(arg.data(), arg.size()));
     } else if constexpr (std::is_same_v<T, bool>) {
+      // F4: false; F5: true
       file.write_some(asio::const_buffer(arg ? "\xF5" : "\xF4", 1));
     } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
+      // F6: null (Lua中转为nil)
       file.write_some(asio::const_buffer("\xF6", 1));
     }
   }, param);
@@ -46,7 +48,7 @@ static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param)
 static void sendRequest(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) {
   u_char buf[10]; size_t buflen;
   // { jsonRpc: '2.0', method: '
-  file.write_some(asio::const_buffer("\xa4\x18\x64\x43\x32\x2e\x30\x18\x65", 9));
+  file.write_some(asio::const_buffer("\xa4\x18\x64\x43" "2.0" "\x18\x65", 9));
   buflen = cbor_encode_uint(pkt.method.size(), buf, 10);
   buf[0] += 0x40;
   // <method>',
@@ -79,7 +81,7 @@ static void sendRequest(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt
 static void sendResponse(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) {
   u_char buf[10]; size_t buflen;
   // { jsonRpc: '2.0', id:
-  file.write_some(asio::const_buffer("\xa3\x18\x64\x43\x32\x2e\x30\x18\x68", 9));
+  file.write_some(asio::const_buffer("\xa3\x18\x64\x43" "2.0" "\x18\x68", 9));
 
   // id
   buflen = cbor_encode_uint(pkt.id, buf, 10);
@@ -101,7 +103,7 @@ static void sendError(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) 
   }
 
   // { jsonRpc: '2.0',
-  file.write_some(asio::const_buffer("\x18\x64\x43\x32\x2e\x30", 6));
+  file.write_some(asio::const_buffer("\x18\x64\x43" "2.0", 6));
 
   // [id]
   if (pkt.id >= 0) {

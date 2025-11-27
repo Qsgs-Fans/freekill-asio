@@ -8,6 +8,8 @@
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
 
+using json = nlohmann::json;
+
 // 这何尝不是一种手搓swig。。
 
 using namespace JsonRpc;
@@ -451,7 +453,9 @@ static _rpcRet _rpc_Room_addNpc(const JsonRpcPacket &packet) {
 
   auto &bot = room->addNpc();
 
-  return { true, RpcDispatchers::getPlayerObject(bot) };
+  auto bin = json::to_cbor(RpcDispatchers::getPlayerObject(bot));
+
+  return { true, std::string(bin.begin(), bin.end()) };
 }
 
 static _rpcRet _rpc_Room_removeNpc(const JsonRpcPacket &packet) {
@@ -587,53 +591,16 @@ static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
 
 // 收官：getRoom
 
-std::string RpcDispatchers::getPlayerObject(Player &p) {
-  std::string ret;
-  ret.reserve(256);
-
-  u_char buf[10]; size_t buflen;
-
-  ret.push_back('\xA7');
-  ret += "\x46" "connId";
-  buflen = cbor_encode_uint(p.getConnId(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x42id";
-  buflen = cbor_encode_uint(p.getId(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x4AscreenName";
-  auto screenName = p.getScreenName();
-  buflen = cbor_encode_uint(screenName.size(), buf, 10);
-  buf[0] += 0x40;
-  ret += std::string_view { (char *)buf, buflen };
-  ret += screenName;
-
-  ret += "\x46" "avatar";
-  auto avatar = p.getAvatar();
-  buflen = cbor_encode_uint(avatar.size(), buf, 10);
-  buf[0] += 0x40;
-  ret += std::string_view { (char *)buf, buflen };
-  ret += avatar;
-
-  ret += "\x4DtotalGameTime";
-  buflen = cbor_encode_uint(p.getTotalGameTime(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x45state";
-  buflen = cbor_encode_uint(p.getState(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x48gameData";
-  ret += "\x83";
-  buflen = cbor_encode_uint(p.getGameData()[0], buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-  buflen = cbor_encode_uint(p.getGameData()[1], buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-  buflen = cbor_encode_uint(p.getGameData()[2], buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  return ret;
+json RpcDispatchers::getPlayerObject(Player &p) {
+  return {
+    { "connId", p.getConnId() },
+    { "id", p.getId() },
+    { "screenName", p.getScreenName() },
+    { "avatar", p.getAvatar() },
+    { "totalGameTime", p.getTotalGameTime() },
+    { "state", p.getState() },
+    { "gameData", p.getGameData() },
+  };
 }
 
 static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
@@ -653,42 +620,25 @@ static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
   }
 
   const auto &pids = room->getPlayers();
-  auto settings = room->getSettings();
-  u_char buf[10]; size_t buflen;
-  std::string ret;
-  ret.reserve(256 * pids.size() + settings.size() + 64);
 
-  ret += "\xA5";
-  ret += "\x42id";
-  buflen = cbor_encode_uint(room->getId(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
+  auto owner = room->getOwner().lock();
+  json j {
+    { "id", room->getId() },
+    { "ownerId", owner ? owner->getId() : 0 },
+    { "timeout", room->getTimeout() },
+    { "settings", room->getSettings() },
+  };
 
-  ret += "\x47players";
-  buflen = cbor_encode_uint(pids.size(), buf, 10);
-  buf[0] += 0x80;
-  ret += std::string_view { (char *)buf, buflen };
+  auto players = json::array();
   auto &um = Server::instance().user_manager();
   for (auto pid : pids) {
     auto p = um.findPlayerByConnId(pid).lock();
-    if (p) ret += RpcDispatchers::getPlayerObject(*p);
+    if (p) players.push_back( RpcDispatchers::getPlayerObject(*p) );
   }
+  j["players"] = players;
 
-  ret += "\x47ownerId";
-  auto owner = room->getOwner().lock();
-  buflen = cbor_encode_uint(owner ? owner->getId() : 0, buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x47timeout";
-  buflen = cbor_encode_uint(room->getTimeout(), buf, 10);
-  ret += std::string_view { (char *)buf, buflen };
-
-  ret += "\x48settings";
-  buflen = cbor_encode_uint(settings.size(), buf, 10);
-  buf[0] += 0x40;
-  ret += std::string_view { (char *)buf, buflen };
-  ret += settings;
-
-  return { true, ret };
+  auto bin = json::to_cbor(j);
+  return { true, std::string(bin.begin(), bin.end()) };
 }
 
 const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {

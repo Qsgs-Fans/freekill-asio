@@ -16,6 +16,8 @@
 #include <thread>
 #include <pthread.h>
 
+using json = nlohmann::json;
+
 namespace asio = boost::asio;
 using namespace std::literals;
 
@@ -72,7 +74,8 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
     if (!p) return;
 
     // spdlog::debug("--> AddObserver {}, {}, {}", roomId, connId, p->getId());
-    L->call("AddObserver", roomId, RpcDispatchers::getPlayerObject(*p));
+    auto bin = json::to_cbor(RpcDispatchers::getPlayerObject(*p));
+    L->call("AddObserver", roomId, std::string(bin.begin(), bin.end()));
   };
   remove_observer_callback = [&](int pid, int roomId) {
     // spdlog::debug("--> RemoveObserver {}, {}", roomId, pid);

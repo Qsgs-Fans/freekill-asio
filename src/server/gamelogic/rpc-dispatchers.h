@@ -3,12 +3,13 @@
 #pragma once
 
 #include "server/rpc-lua/jsonrpc.h"
+#include <nlohmann/json.hpp>
 
 class Player;
 
 namespace RpcDispatchers {
 
-extern std::string getPlayerObject(Player &p);
+extern nlohmann::json getPlayerObject(Player &p);
 
 extern const JsonRpc::RpcMethodMap ServerRpcMethods;
 

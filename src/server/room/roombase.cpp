@@ -10,6 +10,9 @@
 #include "network/client_socket.h"
 #include "core/c-wrapper.h"
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 bool RoomBase::isLobby() const {
   return dynamic_cast<const Lobby *>(this) != nullptr;
 }
@@ -30,37 +33,17 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
   auto &um = server.user_manager();
   auto data = packet.cborData;
 
-  struct cbor_load_result result;
-  auto mp = cbor_load((cbor_data)data.data(), data.size(), &result);
-  if (!cbor_isa_map(mp)) {
-    cbor_decref(&mp);
+  json mp;
+  try {
+    mp = json::from_cbor(data);
+  } catch (...) {
     return;
   }
+  if (!mp.is_object()) return;
 
-  auto sz = cbor_map_size(mp);
-  auto pairs = cbor_map_handle(mp);
-
-  int type = 1;
-  std::string msg;
+  int type = mp.value("type", 1);
+  std::string msg = mp.value("msg", "");
   auto senderId = sender.getId();
-
-  for (size_t i = 0; i < sz; i++) {
-    auto pair = pairs[i];
-    auto k = pair.key, v = pair.value;
-
-    if (cbor_isa_string(k) && strncmp((const char *)cbor_string_handle(k), "msg", 3) == 0) {
-      if (!cbor_isa_string(v)) continue;
-      msg = std::string { (const char *)cbor_string_handle(v), cbor_string_length(v) };
-    }
-
-    if (cbor_isa_string(k) && strncmp((const char *)cbor_string_handle(k), "type", 4) == 0) {
-      if (!cbor_isa_uint(v)) continue;
-      type = cbor_get_uint8(v);
-    }
-  }
-
-  // 好了mp没用了 我们必须发新map给client
-  cbor_decref(&mp);
 
   if (!server.checkBanWord(msg)) {
     return;
@@ -79,44 +62,34 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
 
   // 新map: { type, sender, msg, [userName] }
 
-  // 还是来拼好cbor吧 前有手搓cbor
-  std::ostringstream oss;
-  char uint_buf[10]; size_t uint_len;
-  uint_len = cbor_encode_uint(senderId, (cbor_mutable_data)uint_buf, 10);
-
   if (type == 1) {
     auto lobby = dynamic_cast<Lobby *>(this);
     if (!lobby) return;
 
-    oss << "\xA4\x64type\x01\x66sender" << std::string_view { uint_buf, uint_len }
-      << "\x68userName";
-
-    uint_len = cbor_encode_uint(sender.getScreenName().size(), (cbor_mutable_data)uint_buf, 10);
-    uint_buf[0] += 0x60; // uint(n) -> str(#)
-    oss << std::string_view { uint_buf, uint_len } << sender.getScreenName()
-      << "\x63msg";
-
-    uint_len = cbor_encode_uint(msg.size(), (cbor_mutable_data)uint_buf, 10);
-    uint_buf[0] += 0x60; // uint(n) -> str(#)
-    oss << std::string_view { uint_buf, uint_len } << msg;
+    auto vec = json::to_cbor({
+      { "type", 1 },
+      { "sender", senderId },
+      { "userName", sender.getScreenName() },
+      { "msg", msg },
+    });
 
     for (auto &[pid, _] : lobby->getPlayers()) {
       auto p = um.findPlayerByConnId(pid).lock();
-      if (p) p->doNotify("Chat", oss.str());
+      if (p) p->doNotify("Chat", std::string(vec.begin(), vec.end()));
     }
   } else {
     auto room = dynamic_cast<Room *>(this);
     if (!room) return;
 
-    oss << "\xA3\x64type\x02\x66sender" << std::string_view { uint_buf, uint_len }
-      << "\x63msg";
+    auto vec = json::to_cbor({
+      { "type", 2 },
+      { "sender", senderId },
+      { "msg", msg },
+    });
+    std::string payload(vec.begin(), vec.end());
 
-    uint_len = cbor_encode_uint(msg.size(), (cbor_mutable_data)uint_buf, 10);
-    uint_buf[0] += 0x60; // uint(n) -> str(#)
-    oss << std::string_view { uint_buf, uint_len } << msg;
-
-    room->doBroadcastNotify(room->getPlayers(), "Chat", oss.str());
-    room->doBroadcastNotify(room->getObservers(), "Chat", oss.str());
+    room->doBroadcastNotify(room->getPlayers(), "Chat", payload);
+    room->doBroadcastNotify(room->getObservers(), "Chat", payload);
   }
 
   spdlog::info("[Chat/{}] {}: {}",
@@ -140,14 +113,7 @@ void RoomBase::readGlobalSaveState(Player &sender, const Packet &packet) {
     if (!p) return;
     auto &sender = *p;
 
-    // 包装成cbor string后原样发回
-    u_char buf[10]; size_t buflen;
-    buflen = cbor_encode_uint(val.size(), buf, 10);
-    buf[0] += 0x60;
-    std::string toSend;
-    toSend.reserve(val.size() + 10);
-    toSend += std::string_view { (char*)buf, buflen };
-    toSend += val;
-    sender.doNotify("ReadGlobalSaveState", toSend);
+    auto vec = json::to_cbor(val);
+    sender.doNotify("ReadGlobalSaveState", std::string(vec.begin(), vec.end()));
   });
 }

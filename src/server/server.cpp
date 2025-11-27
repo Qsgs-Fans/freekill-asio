@@ -117,6 +117,8 @@ void Server::stop() {
 
 // 提前析构掉Player啥的，防止instance复活
 void Server::_clear() {
+  m_threads.clear();
+
   std::vector<std::shared_ptr<Player>> players;
   for (auto &[_, p] : m_user_manager->getPlayers()) {
     players.push_back(p);

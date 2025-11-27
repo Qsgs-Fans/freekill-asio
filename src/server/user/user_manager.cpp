@@ -10,6 +10,9 @@
 #include "network/router.h"
 #include "core/c-wrapper.h"
 
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 namespace asio = boost::asio;
 
 UserManager::UserManager() {
@@ -188,30 +191,6 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
   if (all_info) {
     auto &conf = Server::instance().config();
 
-    // 经典环节
-    std::string toSend;
-    toSend.reserve(1024);
-    u_char buf[10]; size_t buflen;
-
-    toSend += "\x83"; // array(3)
-
-    // arr[0] = motd
-    buflen = cbor_encode_uint(conf.motd.size(), buf, 10);
-    buf[0] += 0x60;
-    toSend += std::string_view { (char*)buf, buflen };
-    toSend += conf.motd;
-
-    // arr[1] = hiddenPacks
-    buflen = cbor_encode_uint(conf.hiddenPacks.size(), buf, 10);
-    buf[0] += 0x80;
-    toSend += std::string_view { (char*)buf, buflen };
-    for (auto &s : conf.hiddenPacks) {
-      buflen = cbor_encode_uint(s.size(), buf, 10);
-      buf[0] += 0x60;
-      toSend += std::string_view { (char*)buf, buflen };
-      toSend += s;
-    }
-
     static const std::vector<std::string> supportedFeatures = {
       "AddRobot",           // 自古可以加机器人
       "ChangeRoom",         // v0.1.1: 房间配置修改功能
@@ -223,16 +202,12 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
     std::vector<std::string> enabledFeatures {
       enabledFeaturesView.begin(), enabledFeaturesView.end() };
 
-    // arr[2] = enableFeatures
-    buflen = cbor_encode_uint(enabledFeatures.size(), buf, 10);
-    buf[0] += 0x80;
-    toSend += std::string_view { (char*)buf, buflen };
-    for (auto &s : enabledFeatures) {
-      buflen = cbor_encode_uint(s.size(), buf, 10);
-      buf[0] += 0x60;
-      toSend += std::string_view { (char*)buf, buflen };
-      toSend += s;
-    }
+    auto bin = json::to_cbor({
+      conf.motd,
+      conf.hiddenPacks,
+      enabledFeatures,
+    });
+    std::string toSend(bin.begin(), bin.end());
 
     player.doNotify("SetServerSettings", toSend);
   }

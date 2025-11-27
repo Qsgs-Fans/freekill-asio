@@ -15,6 +15,9 @@
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include "3rdparty/semver.hpp"
 
 struct AuthManagerPrivate {
@@ -114,13 +117,11 @@ AuthManager::AuthManager() {
     public_key = ss.str();
   }
 
-  public_key_cbor.clear();
-  public_key_cbor.reserve(550);
-  u_char buf[10]; size_t buflen;
-  buflen = cbor_encode_uint(public_key.size(), buf, 10);
-  buf[0] += 0x40;
-
-  public_key_cbor = std::string { (char*)buf, buflen } + public_key;
+  auto bin = json::to_cbor(
+    json::binary(
+      std::vector<std::uint8_t>(public_key.begin(), public_key.end()))
+  );
+  public_key_cbor = std::string(bin.begin(), bin.end());
 }
 
 AuthManager::~AuthManager() noexcept {
