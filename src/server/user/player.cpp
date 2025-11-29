@@ -383,90 +383,110 @@ void Player::onReadyChanged() {
 }
 
 void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
-  if (id < 0) return cb();
+  do {
+    if (id < 0) break;
 
-  auto room_base = getRoom().lock();
-  if (!room_base) return cb();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  if (!room) return cb();
-  std::string mode { room->getGameMode() };
+    auto room_base = getRoom().lock();
+    if (!room_base) break;
+    auto room = dynamic_pointer_cast<Room>(room_base);
+    if (!room) break;
+    std::string mode { room->getGameMode() };
 
-  if (!Sqlite3::checkString(mode)) {
-    spdlog::error("Invalid mode string for saveState: {}", mode);
-    return cb();
-  }
+    if (!Sqlite3::checkString(mode)) {
+      spdlog::error("Invalid mode string for saveState: {}", mode);
+      break;
+    }
 
-  auto hexData = toHex(jsonData);
-  auto &gamedb = Server::instance().gameDatabase();
-  auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", id, mode, hexData);
+    auto hexData = toHex(jsonData);
+    auto &gamedb = Server::instance().gameDatabase();
+    auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", id, mode, hexData);
 
-  gamedb.async_exec(sql, cb);
+    return gamedb.async_exec(sql, cb);
+  } while (false);
+
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, cb);
 }
 
 void Player::getSaveState(std::function<void(std::string)> &&cb) {
-  auto room_base = getRoom().lock();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  if (!room) {
-    return cb("{}");
-  }
-  std::string mode { room->getGameMode() };
+  do {
+    auto room_base = getRoom().lock();
+    auto room = dynamic_pointer_cast<Room>(room_base);
+    if (!room) break;
+    std::string mode { room->getGameMode() };
 
-  if (!Sqlite3::checkString(mode)) {
-    spdlog::error("Invalid mode string for readSaveState: {}", mode);
-    return cb("{}");
-  }
+    if (!Sqlite3::checkString(mode)) {
+      spdlog::error("Invalid mode string for readSaveState: {}", mode);
+      break;
+    }
 
-  auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", id, mode);
+    auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", id, mode);
+    auto &db = Server::instance().gameDatabase();
 
-  Server::instance().gameDatabase().async_select(sql, [cb](Sqlite3::QueryResult result) {
-    if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+    return db.async_select(sql, [cb](Sqlite3::QueryResult result) {
+      if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+        return cb("{}");
+      }
+
+      const auto& data = result[0]["data"];
+      if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+        return cb(data);
+      }
+
+      spdlog::warn("Returned data is not valid JSON: {}", data);
       return cb("{}");
-    }
+    });
+  } while (false);
 
-    const auto& data = result[0]["data"];
-    if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
-      return cb(data);
-    }
-
-    spdlog::warn("Returned data is not valid JSON: {}", data);
-    return cb("{}");
-  });
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, [=] { cb("{}"); });
 }
 
 void Player::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
-  if (id < 0) return cb();
+  do {
+    if (id < 0) break;
 
-  if (!Sqlite3::checkString(key)) {
-    spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
-    return cb();
-  }
+    if (!Sqlite3::checkString(key)) {
+      spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
+      break;
+    }
 
-  auto hexData = toHex(jsonData);
-  auto &gamedb = Server::instance().gameDatabase();
-  auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", id, key, hexData);
-  
-  gamedb.async_exec(sql, cb);
+    auto hexData = toHex(jsonData);
+    auto &gamedb = Server::instance().gameDatabase();
+    auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", id, key, hexData);
+
+    return gamedb.async_exec(sql, cb);
+  } while (false);
+
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, cb);
 }
 
 void Player::getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&cb) {
-  if (!Sqlite3::checkString(key)) {
-    spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
-    return cb("{}");
-  }
+  do {
+    if (!Sqlite3::checkString(key)) {
+      spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
+      break;
+    }
 
-  auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", id, key);
+    auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", id, key);
 
-  Server::instance().gameDatabase().async_select(sql, [cb](Sqlite3::QueryResult result) {
-    if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+    auto &db = Server::instance().gameDatabase();
+    return db.async_select(sql, [cb](Sqlite3::QueryResult result) {
+      if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+        return cb("{}");
+      }
+
+      const auto& data = result[0]["data"];
+      if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+        return cb(data);
+      }
+
+      spdlog::warn("Returned data is not valid JSON: {}", data);
       return cb("{}");
-    }
+    });
+  } while (false);
 
-    const auto& data = result[0]["data"];
-    if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
-      return cb(data);
-    }
-
-    spdlog::warn("Returned data is not valid JSON: {}", data);
-    return cb("{}");
-  });
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, [=] { cb("{}"); });
 }
