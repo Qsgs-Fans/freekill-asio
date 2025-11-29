@@ -429,16 +429,6 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 
   pid_t pid = fork();
   if (pid == 0) { // child
-    // 关闭父进程用的 pipe 端
-    ::close(stdin_pipe[1]);  // 关闭父进程的写入端（子进程只读 stdin）
-    ::close(stdout_pipe[0]); // 关闭父进程的读取端（子进程只写 stdout）
-
-    // 重定向 stdin/stdout
-    ::dup2(stdin_pipe[0], STDIN_FILENO);   // 子进程的 stdin ← 父进程的写入端
-    ::dup2(stdout_pipe[1], STDOUT_FILENO); // 子进程的 stdout → 父进程的读取端
-    ::close(stdin_pipe[0]);
-    ::close(stdout_pipe[1]);
-
     sigset_t newmask, oldmask;
     sigemptyset(&newmask);
     sigaddset(&newmask, SIGINT); // 阻塞 SIGINT
@@ -451,10 +441,21 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
     }
 
     auto disabled_packs = PackMan::instance().getDisabledPacks();
-    auto json_string = json { disabled_packs }.dump();
+    auto json_string = json(disabled_packs).dump();
     ::setenv("FK_DISABLED_PACKS", json_string.c_str(), 1);
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
+
+    // 关闭父进程用的 pipe 端
+    ::close(stdin_pipe[1]);  // 关闭父进程的写入端（子进程只读 stdin）
+    ::close(stdout_pipe[0]); // 关闭父进程的读取端（子进程只写 stdout）
+
+    // 重定向 stdin/stdout
+    ::dup2(stdin_pipe[0], STDIN_FILENO);   // 子进程的 stdin ← 父进程的写入端
+    ::dup2(stdout_pipe[1], STDOUT_FILENO); // 子进程的 stdout → 父进程的读取端
+    ::close(stdin_pipe[0]);
+    ::close(stdout_pipe[1]);
+
     ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
 
     ::_exit(EXIT_FAILURE);
