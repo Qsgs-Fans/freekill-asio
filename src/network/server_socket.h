@@ -15,12 +15,18 @@ public:
   ServerSocket(ServerSocket &&) = delete;
   ServerSocket(io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd);
 
+  ~ServerSocket();
+
   void start();
 
   // signal connectors
   void set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)>);
 
 private:
+  io_context worker_io;
+  io_context &main_io;
+  std::thread m_thread;
+
   tcp::acceptor m_acceptor;
   udp::socket m_udp_socket;
 

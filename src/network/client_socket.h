@@ -31,7 +31,7 @@ public:
   ClientSocket() = delete;
   ClientSocket(ClientSocket &) = delete;
   ClientSocket(ClientSocket &&) = delete;
-  explicit ClientSocket(tcp::socket socket);
+  explicit ClientSocket(tcp::socket &&socket);
 
   void start();
 
