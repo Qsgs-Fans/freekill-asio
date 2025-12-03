@@ -10,7 +10,7 @@ using asio::detached;
 using asio::use_awaitable;
 using asio::redirect_error;
 
-ClientSocket::ClientSocket(tcp::socket &&socket) : m_socket(std::move(socket)) {
+ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
   disconnected_callback = [this] {
     spdlog::info("client {} disconnected", peerAddress());

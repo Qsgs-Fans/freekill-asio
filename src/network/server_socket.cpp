@@ -17,50 +17,32 @@ using asio::redirect_error;
 using json = nlohmann::json;
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
-  worker_io {}, main_io { io_ctx }, m_acceptor { worker_io, end }, m_udp_socket { io_ctx, udpEnd }
+  m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
 {
   spdlog::info("server is ready to listen on [{}]:{}", end.address().to_string(), end.port());
 }
 
-ServerSocket::~ServerSocket() {
-  // worker_io.stop();
-  m_acceptor.close();
-  m_thread.join();
-}
-
 void ServerSocket::start() {
-  m_thread = std::thread([&] {
-    pthread_setname_np(pthread_self(), "AcceptorThread");
-    // auto guard = boost::asio::make_work_guard(worker_io);
-    asio::co_spawn(worker_io, listener(), asio::detached);
-    asio::co_spawn(main_io, udpListener(), asio::detached);
-    worker_io.run();
-  });
+  asio::co_spawn(m_acceptor.get_executor(), listener(), asio::detached);
+  asio::co_spawn(m_acceptor.get_executor(), udpListener(), asio::detached);
 }
 
 awaitable<void> ServerSocket::listener() {
   for (;;) {
     boost::system::error_code ec;
-
-    // 先创建绑定到main_io的socket，再在这里accept
-    auto socket = tcp::socket(main_io);
-    co_await m_acceptor.async_accept(socket, redirect_error(use_awaitable, ec));
+    auto socket = co_await m_acceptor.async_accept(redirect_error(use_awaitable, ec));
 
     if (!ec) {
-      asio::post(main_io, [cb = std::forward<decltype(new_connection_callback)>(new_connection_callback), socket = std::move(socket)] () mutable {
-        try {
-          auto conn = std::make_shared<ClientSocket>(std::move(socket));
+      try {
+        auto conn = std::make_shared<ClientSocket>(std::move(socket));
 
-          if (cb) {
-            cb(conn);
-            conn->start();
-          }
-        } catch (std::system_error &e) {
-          spdlog::error("ClientSocket creation error: {}", e.what());
+        if (new_connection_callback) {
+          new_connection_callback(conn);
+          conn->start();
         }
-      });
-    } else if (ec == asio::error::operation_aborted) {
-      co_return;
+      } catch (std::system_error &e) {
+        spdlog::error("ClientSocket creation error: {}", e.what());
+      }
     } else {
       spdlog::error("Accept error: {}", ec.message());
     }
