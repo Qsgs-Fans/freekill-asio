@@ -6,7 +6,7 @@
 #include "server/room/lobby.h"
 #include "server/user/user_manager.h"
 #include "server/user/auth.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "network/server_socket.h"
 #include "network/client_socket.h"
 #include "network/router.h"
@@ -68,7 +68,7 @@ awaitable<void> Server::heartbeat() {
       spdlog::error(ec.message());
       break;
     }
-    std::vector<std::shared_ptr<Player>> to_delete;
+    std::vector<std::shared_ptr<ServerPlayer>> to_delete;
     for (auto &[_, p] : m_user_manager->getPlayers()) {
       if (p->isOnline() && p->ttl <= 0) {
         to_delete.push_back(p);
@@ -119,7 +119,7 @@ void Server::stop() {
 void Server::_clear() {
   m_threads.clear();
 
-  std::vector<std::shared_ptr<Player>> players;
+  std::vector<std::shared_ptr<ServerPlayer>> players;
   for (auto &[_, p] : m_user_manager->getPlayers()) {
     players.push_back(p);
   }

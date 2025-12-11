@@ -4,7 +4,7 @@
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/server.h"
 #include "server/user/user_manager.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
 
@@ -642,7 +642,7 @@ static _rpcRet _rpc_Room_getGlobalSaveState(const JsonRpcPacket &packet) {
 
 // 收官：getRoom
 
-json RpcDispatchers::getPlayerObject(Player &p) {
+json RpcDispatchers::getPlayerObject(ServerPlayer &p) {
   return {
     { "connId", p.getConnId() },
     { "id", p.getId() },

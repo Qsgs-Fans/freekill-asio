@@ -6,7 +6,7 @@
 #include "server/server.h"
 #include "server/room/room_manager.h"
 #include "server/user/user_manager.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "network/client_socket.h"
 #include "core/c-wrapper.h"
 #include "core/util.h"
@@ -30,7 +30,7 @@ void RoomBase::doBroadcastNotify(const std::vector<int> targets,
   }
 }
 
-void RoomBase::chat(Player &sender, const Packet &packet) {
+void RoomBase::chat(ServerPlayer &sender, const Packet &packet) {
   auto &server = Server::instance();
   auto &um = server.user_manager();
   auto data = packet.cborData;
@@ -100,7 +100,7 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
         msg);
 }
 
-void RoomBase::readGlobalSaveState(Player &sender, const Packet &packet) {
+void RoomBase::readGlobalSaveState(ServerPlayer &sender, const Packet &packet) {
   // Packet内容：一个string
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();

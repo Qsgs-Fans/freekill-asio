@@ -6,7 +6,7 @@
 #include "core/c-wrapper.h"
 // #include "server/rpc-lua/rpc-lua.h"
 #include "server/gamelogic/rpc-dispatchers.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/user/user_manager.h"
 #include "server/room/room_manager.h"
 #include "server/room/room.h"

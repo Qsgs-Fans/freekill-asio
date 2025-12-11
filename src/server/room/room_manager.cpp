@@ -4,7 +4,7 @@
 #include "server/room/room.h"
 #include "server/room/roombase.h"
 #include "server/room/lobby.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/gamelogic/roomthread.h"
 #include "server/server.h"
 #include <spdlog/spdlog.h>
@@ -13,7 +13,7 @@ RoomManager::RoomManager() {
   m_lobby = std::make_shared<Lobby>();
 }
 
-std::shared_ptr<Room> RoomManager::createRoom(Player &creator, const std::string &name, int capacity,
+std::shared_ptr<Room> RoomManager::createRoom(ServerPlayer &creator, const std::string &name, int capacity,
                                               int timeout, const std::string &settings)
 {
   auto &server = Server::instance();

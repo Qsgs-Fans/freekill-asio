@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "server/user/user_manager.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/user/auth.h"
 #include "server/server.h"
 #include "server/room/room_manager.h"
@@ -19,7 +19,7 @@ UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
 
-std::weak_ptr<Player> UserManager::findPlayer(int id) const {
+std::weak_ptr<ServerPlayer> UserManager::findPlayer(int id) const {
   if (id < 0) return findRobot(id);
   try {
     return online_players_map.at(id);
@@ -28,7 +28,7 @@ std::weak_ptr<Player> UserManager::findPlayer(int id) const {
   }
 }
 
-std::weak_ptr<Player> UserManager::findRobot(int id) const {
+std::weak_ptr<ServerPlayer> UserManager::findRobot(int id) const {
   try {
     return robots_map.at(id);
   } catch (const std::out_of_range &) {
@@ -36,7 +36,7 @@ std::weak_ptr<Player> UserManager::findRobot(int id) const {
   }
 }
 
-std::weak_ptr<Player> UserManager::findPlayerByConnId(int connId) const {
+std::weak_ptr<ServerPlayer> UserManager::findPlayerByConnId(int connId) const {
   try {
     return players_map.at(connId);
   } catch (const std::out_of_range &) {
@@ -44,7 +44,7 @@ std::weak_ptr<Player> UserManager::findPlayerByConnId(int connId) const {
   }
 }
 
-void UserManager::addPlayer(std::shared_ptr<Player> player) {
+void UserManager::addPlayer(std::shared_ptr<ServerPlayer> player) {
   int id = player->getId();
   if (id > 0) {
     if (online_players_map[id])
@@ -61,12 +61,12 @@ void UserManager::addPlayer(std::shared_ptr<Player> player) {
   players_map[player->getConnId()] = player;
 }
 
-void UserManager::deletePlayer(Player &p) {
+void UserManager::deletePlayer(ServerPlayer &p) {
   removePlayer(p, p.getId());
   removePlayerByConnId(p.getConnId());
 }
 
-void UserManager::removePlayer(Player &p, int id) {
+void UserManager::removePlayer(ServerPlayer &p, int id) {
   if (online_players_map.find(id) != online_players_map.end() &&
     online_players_map[id].get() == &p) {
     online_players_map.erase(id);
@@ -83,7 +83,7 @@ void UserManager::removePlayerByConnId(int connId) {
 }
 
 
-const std::unordered_map<int, std::shared_ptr<Player>> &UserManager::getPlayers() const {
+const std::unordered_map<int, std::shared_ptr<ServerPlayer>> &UserManager::getPlayers() const {
   return online_players_map;
 }
 
@@ -134,8 +134,8 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
 }
 
 void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::string_view name, std::string_view avatar, int id, std::string_view uuid_str) {
-  // create new Player and setup
-  auto player = std::make_shared<Player>();
+  // create new ServerPlayer and setup
+  auto player = std::make_shared<ServerPlayer>();
   player->router().setSocket(client);
   player->setState(Player::Online);
   player->setScreenName(std::string(name));
@@ -163,10 +163,10 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   if (lobby) lobby->addPlayer(*player);
 }
 
-Player &UserManager::createRobot() {
+ServerPlayer &UserManager::createRobot() {
   static int nextRobotId = -2;
 
-  auto robot = std::make_shared<Player>();
+  auto robot = std::make_shared<ServerPlayer>();
   robot->setState(Player::Robot);
   robot->setId(nextRobotId--);
   if (nextRobotId < (int)0x800000FF) nextRobotId = -2;
@@ -178,7 +178,7 @@ Player &UserManager::createRobot() {
   return *robot;
 }
 
-void UserManager::setupPlayer(Player &player, bool all_info) {
+void UserManager::setupPlayer(ServerPlayer &player, bool all_info) {
   // tell the lobby player's basic property
   player.doNotify("Setup", Cbor::encodeArray({
     player.getId(),

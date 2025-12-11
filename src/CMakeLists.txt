@@ -6,6 +6,7 @@ set(freekill_SRCS
   "core/util.cpp"
   "core/c-wrapper.cpp"
   "core/packman.cpp"
+  "core/player.cpp"
 
   "network/server_socket.cpp"
   "network/client_socket.cpp"
@@ -15,7 +16,7 @@ set(freekill_SRCS
   "server/server.cpp"
 
   "server/user/auth.cpp"
-  "server/user/player.cpp"
+  "server/user/serverplayer.cpp"
   "server/user/user_manager.cpp"
 
   "server/room/roombase.cpp"
