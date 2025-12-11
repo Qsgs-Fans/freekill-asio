@@ -10,7 +10,6 @@
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
 #include "core/c-wrapper.h"
-#include "core/util.h"
 
 namespace asio = boost::asio;
 

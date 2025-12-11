@@ -99,7 +99,6 @@ public:
   // 这个函数单纯只在c++侧新建人机，不通知客户端，需要Lua逻辑另外完成
   // 需要返回添加的那个人机
   Player &addNpc();
-
   void removeNpc(Player &);
 
 private:

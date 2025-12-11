@@ -9,6 +9,8 @@
 #include "server/user/player.h"
 #include "network/client_socket.h"
 #include "core/c-wrapper.h"
+#include "core/util.h"
+#include "server/io/dbthread.hpp"
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -116,4 +118,51 @@ void RoomBase::readGlobalSaveState(Player &sender, const Packet &packet) {
     auto vec = json::to_cbor(val);
     sender.doNotify("ReadGlobalSaveState", std::string(vec.begin(), vec.end()));
   });
+}
+
+void RoomBase::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
+  do {
+    if (!Sqlite3::checkString(key)) {
+      spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
+      break;
+    }
+
+    auto hexData = toHex(jsonData);
+    auto &gamedb = Server::instance().gameDatabase();
+    auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES (0,'{}',X'{}')", key, hexData);
+
+    return gamedb.async_exec(sql, cb);
+  } while (false);
+
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, cb);
+}
+
+void RoomBase::getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&cb) {
+  do {
+    if (!Sqlite3::checkString(key)) {
+      spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
+      break;
+    }
+
+    auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = 0 AND key = '{}'", key);
+
+    auto &db = Server::instance().gameDatabase();
+    return db.async_select(sql, [cb](Sqlite3::QueryResult result) {
+      if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+        return cb("{}");
+      }
+
+      const auto& data = result[0]["data"];
+      if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+        return cb(data);
+      }
+
+      spdlog::warn("Returned data is not valid JSON: {}", data);
+      return cb("{}");
+    });
+  } while (false);
+
+  auto &main_ctx = Server::instance().context();
+  asio::post(main_ctx, [=] { cb("{}"); });
 }

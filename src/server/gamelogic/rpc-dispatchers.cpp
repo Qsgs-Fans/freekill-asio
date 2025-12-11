@@ -226,6 +226,111 @@ static _rpcRet _rpc_Player_emitKick(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
+static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto jsonData = std::get<std::string_view>(packet.param2);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->saveState(jsonData, [room] {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), "query_done");
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->getSaveState([room](std::string result) {;
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), result);
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 3 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->saveGlobalState(key, jsonData, [room] {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), "query_done");
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  auto room_base = player->getRoom().lock();
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  player->getGlobalSaveState(key, [room](std::string result) {
+    if (!room) return;
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), result);
+  });
+  return { true, true };
+}
+
+
 // part3: Room相关
 
 static _rpcRet _rpc_Room_delay(const JsonRpcPacket &packet) {
@@ -484,57 +589,7 @@ static _rpcRet _rpc_Room_removeNpc(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
-  if (!(packet.param_count == 2 &&
-    std::holds_alternative<int>(packet.param1) &&
-    std::holds_alternative<std::string_view>(packet.param2)
-  )) {
-    return { false, nullVal };
-  }
-
-  auto connId = std::get<int>(packet.param1);
-  auto jsonData = std::get<std::string_view>(packet.param2);
-
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
-  if (!player) {
-    return { false, nullVal };
-  }
-
-  auto room_base = player->getRoom().lock();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  player->saveState(jsonData, [room] {
-    if (!room) return;
-    auto thread = room->thread().lock();
-    if (thread) thread->wakeUp(room->getId(), "query_done");
-  });
-  return { true, true };
-}
-
-static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
-  if (!(packet.param_count == 1 &&
-    std::holds_alternative<int>(packet.param1)
-  )) {
-    return { false, nullVal };
-  }
-
-  auto connId = std::get<int>(packet.param1);
-
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
-  if (!player) {
-    return { false, nullVal };
-  }
-
-  auto room_base = player->getRoom().lock();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  player->getSaveState([room](std::string result) {;
-    if (!room) return;
-    auto thread = room->thread().lock();
-    if (thread) thread->wakeUp(room->getId(), result);
-  });
-  return { true, true };
-}
-
-static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
+static _rpcRet _rpc_Room_saveGlobalState(const JsonRpcPacket &packet) {
   if (!(packet.param_count == 3 &&
     std::holds_alternative<int>(packet.param1) &&
     std::holds_alternative<std::string_view>(packet.param2) &&
@@ -543,18 +598,16 @@ static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto connId = std::get<int>(packet.param1);
+  auto roomId = std::get<int>(packet.param1);
   auto key = std::get<std::string_view>(packet.param2);
   auto jsonData = std::get<std::string_view>(packet.param3);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
-  if (!player) {
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
     return { false, nullVal };
   }
 
-  auto room_base = player->getRoom().lock();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  player->saveGlobalState(key, jsonData, [room] {
+  room->saveGlobalState(key, jsonData, [room] {
     if (!room) return;
     auto thread = room->thread().lock();
     if (thread) thread->wakeUp(room->getId(), "query_done");
@@ -562,7 +615,7 @@ static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
   return { true, true };
 }
 
-static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
+static _rpcRet _rpc_Room_getGlobalSaveState(const JsonRpcPacket &packet) {
   if (!(packet.param_count == 2 &&
     std::holds_alternative<int>(packet.param1) &&
     std::holds_alternative<std::string_view>(packet.param2)
@@ -570,17 +623,15 @@ static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto connId = std::get<int>(packet.param1);
+  auto roomId = std::get<int>(packet.param1);
   auto key = std::get<std::string_view>(packet.param2);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
-  if (!player) {
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
     return { false, nullVal };
   }
 
-  auto room_base = player->getRoom().lock();
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  player->getGlobalSaveState(key, [room](std::string result) {
+  room->getGlobalSaveState(key, [room](std::string result) {
     if (!room) return;
     auto thread = room->thread().lock();
     if (thread) thread->wakeUp(room->getId(), result);
@@ -672,6 +723,8 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Room_setSessionData", _rpc_Room_setSessionData },
   { "Room_addNpc", _rpc_Room_addNpc },
   { "Room_removeNpc", _rpc_Room_removeNpc },
+  { "Room_saveGlobalState", _rpc_Room_saveGlobalState },
+  { "Room_getGlobalSaveState", _rpc_Room_getGlobalSaveState },
 
   { "RoomThread_getRoom", _rpc_RoomThread_getRoom },
 };
