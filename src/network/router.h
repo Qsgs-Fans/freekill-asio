@@ -56,7 +56,7 @@ private:
 
   int64_t requestStartTime;
   std::string m_reply;    // should be json string
-  int expectedReplyId;
+  std::vector<int> expectedReplyIds;
   int replyTimeout;
 
   void sendMessage(const std::string &msg);
