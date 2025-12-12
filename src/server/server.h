@@ -8,6 +8,7 @@ class ClientSocket;
 class UserManager;
 class RoomManager;
 class RoomThread;
+class TaskManager;
 
 class Shell;
 class Sqlite3;
@@ -51,8 +52,9 @@ public:
 
   io_context &context();
 
-  UserManager &user_manager();
-  RoomManager &room_manager();
+  UserManager &user_manager() const;
+  RoomManager &room_manager() const;
+  TaskManager &task_manager() const;
   Sqlite3 &database();
   DbThread &gameDatabase();  // gamedb的getter
   Shell &shell();
@@ -98,6 +100,7 @@ private:
 
   std::unique_ptr<UserManager> m_user_manager;
   std::unique_ptr<RoomManager> m_room_manager;
+  std::unique_ptr<TaskManager> m_task_manager;
 
   std::unique_ptr<Shell> m_shell;
 

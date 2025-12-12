@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
+#include "core/player.h"
 #include "server/user/user_manager.h"
 #include "server/server.h"
 #include "server/gamelogic/roomthread.h"
@@ -20,7 +21,7 @@ using namespace std::chrono;
 
 static int nextConnId = 1000;
 
-Player::Player() {
+ServerPlayer::ServerPlayer() {
   m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
 
   m_router->set_notification_got_callback([this](const Packet &p) { onNotificationGot(p); });
@@ -39,77 +40,38 @@ Player::Player() {
   gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
-Player::~Player() {
-  // spdlog::debug("[MEMORY] Player {} (connId={} state={}) destructed", id, connId, getStateString());
+ServerPlayer::~ServerPlayer() {
+  // spdlog::debug("[MEMORY] ServerPlayer {} (connId={} state={}) destructed", id, connId, getStateString());
   auto room = getRoom().lock();
   if (room) {
     room->removePlayer(*this);
   }
-
-  // 这段现在阶段应该必定由um.deletePlayer触发，就不管了
-  // auto &um = Server::instance().user_manager();
-  // if (um.findPlayer(getId()) == this)
-  //   um.removePlayer(getId());
-
-  // um.removePlayerByConnId(connId);
 }
 
-int Player::getId() const { return id; }
+std::string ServerPlayer::getScreenName() const { return screenName; }
 
-void Player::setId(int id) { this->id = id; }
-
-std::string_view Player::getScreenName() const { return screenName; }
-
-void Player::setScreenName(const std::string &name) {
+void ServerPlayer::setScreenName(const std::string &name) {
   this->screenName = name;
 }
 
-std::string_view Player::getAvatar() const { return avatar; }
+std::string ServerPlayer::getAvatar() const { return avatar; }
 
-void Player::setAvatar(const std::string &avatar) {
+void ServerPlayer::setAvatar(const std::string &avatar) {
   this->avatar = avatar;
 }
 
-int Player::getTotalGameTime() const { return totalGameTime; }
-
-void Player::addTotalGameTime(int toAdd) {
-  totalGameTime += toAdd;
-}
-
-Player::State Player::getState() const { return state; }
-
-std::string_view Player::getStateString() const {
-  switch (state) {
-  case Online:
-    return "online";
-  case Trust:
-    return "trust";
-  case Run:
-    return "run";
-  case Leave:
-    return "leave";
-  case Robot:
-    return "robot";
-  case Offline:
-    return "offline";
-  default:
-    return "invalid";
-  }
-}
-
-
-bool Player::isOnline() const {
+bool ServerPlayer::isOnline() const {
   return m_router->getSocket() != nullptr;
 }
 
-bool Player::insideGame() {
+bool ServerPlayer::insideGame() {
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
   return room != nullptr && room->isStarted() && !room->hasObserver(*this);
 }
 
-void Player::setState(Player::State state) {
-  auto old_state = this->state;
-  this->state = state;
+void ServerPlayer::setState(Player::State state) {
+  auto old_state = getState();
+  Player::setState(state);
 
   if (old_state != state) {
     // QT祖宗之法不可变
@@ -117,50 +79,22 @@ void Player::setState(Player::State state) {
   }
 }
 
-bool Player::isReady() const { return ready; }
-
-void Player::setReady(bool ready) {
-  this->ready = ready;
+void ServerPlayer::setReady(bool ready) {
+  Player::setReady(ready);
   onReadyChanged();
 }
 
-std::vector<int> Player::getGameData() {
-  return { totalGames, winCount, runCount };
-}
-
-void Player::setGameData(int total, int win, int run) {
-  totalGames = total;
-  winCount = win;
-  runCount = run;
-}
-
-std::string_view Player::getLastGameMode() const {
-  return lastGameMode;
-}
-
-void Player::setLastGameMode(const std::string &mode) {
-  lastGameMode = mode;
-}
-
-bool Player::isDied() const {
-  return died;
-}
-
-void Player::setDied(bool died) {
-  this->died = died;
-}
-
-bool Player::isRunned() const {
+bool ServerPlayer::isRunned() const {
   return runned;
 }
 
-void Player::setRunned(bool run) {
+void ServerPlayer::setRunned(bool run) {
   runned = run;
 }
 
-int Player::getConnId() const { return connId; }
+int ServerPlayer::getConnId() const { return connId; }
 
-std::weak_ptr<RoomBase> Player::getRoom() const {
+std::weak_ptr<RoomBase> ServerPlayer::getRoom() const {
   auto &room_manager = Server::instance().room_manager();
   if (roomId == 0) {
     return room_manager.lobby();
@@ -168,41 +102,41 @@ std::weak_ptr<RoomBase> Player::getRoom() const {
   return room_manager.findRoom(roomId);
 }
 
-void Player::setRoom(RoomBase &room) {
+void ServerPlayer::setRoom(RoomBase &room) {
   roomId = room.getId();
 }
 
-Router &Player::router() const {
+Router &ServerPlayer::router() const {
   return *m_router;
 }
 
-// std::string_view Player::getPeerAddress() const {
+// std::string_view ServerPlayer::getPeerAddress() const {
 //   auto p = server->findPlayer(getId());
-//   if (!p || p->getState() != Player::Online)
+//   if (!p || p->getState() != ServerPlayer::Online)
 //     return "";
 //   return p->getSocket()->peerAddress();
 // }
 
-std::string_view Player::getUuid() const {
+std::string_view ServerPlayer::getUuid() const {
   return uuid_str;
 }
 
-void Player::setUuid(const std::string &uuid) {
+void ServerPlayer::setUuid(const std::string &uuid) {
   uuid_str = uuid;
 }
 
-void Player::doRequest(const std::string_view &command,
+void ServerPlayer::doRequest(const std::string_view &command,
                        const std::string_view &jsonData, int timeout, int64_t timestamp) {
-  if (getState() != Player::Online)
+  if (getState() != ServerPlayer::Online)
     return;
 
   int type = Router::TYPE_REQUEST | Router::SRC_SERVER | Router::DEST_CLIENT;
   m_router->request(type, command, jsonData, timeout, timestamp);
 }
 
-std::string Player::waitForReply(int timeout) {
+std::string ServerPlayer::waitForReply(int timeout) {
   std::string ret;
-  if (getState() != Player::Online) {
+  if (getState() != ServerPlayer::Online) {
     ret = "__cancel";
   } else {
     ret = m_router->waitForReply(timeout);
@@ -210,7 +144,7 @@ std::string Player::waitForReply(int timeout) {
   return ret;
 }
 
-void Player::doNotify(const std::string_view &command, const std::string_view &data) {
+void ServerPlayer::doNotify(const std::string_view &command, const std::string_view &data) {
   if (!isOnline())
     return;
 
@@ -222,17 +156,17 @@ void Player::doNotify(const std::string_view &command, const std::string_view &d
   m_router->notify(type, command, data == "" ? "\xF6" : data);
 }
 
-bool Player::thinking() {
+bool ServerPlayer::thinking() {
   std::lock_guard<std::mutex> locker { m_thinking_mutex };
   return m_thinking;
 }
 
-void Player::setThinking(bool t) {
+void ServerPlayer::setThinking(bool t) {
   std::lock_guard<std::mutex> locker { m_thinking_mutex };
   m_thinking = t;
 }
 
-void Player::onNotificationGot(const Packet &packet) {
+void ServerPlayer::onNotificationGot(const Packet &packet) {
   if (packet.command == "Heartbeat") {
     ttl = max_ttl;
     return;
@@ -243,8 +177,8 @@ void Player::onNotificationGot(const Packet &packet) {
   if (room) room->handlePacket(*this, packet);
 }
 
-void Player::onDisconnected() {
-  spdlog::info("Player {} disconnected{}", id,
+void ServerPlayer::onDisconnected() {
+  spdlog::info("Player {} disconnected{}", getId(),
                m_router->getSocket() != nullptr ? "" : " (pseudo)");
 
   m_router->setSocket(nullptr);
@@ -271,9 +205,9 @@ void Player::onDisconnected() {
   }
 }
 
-Router &Player::getRouter() { return *m_router; }
+Router &ServerPlayer::getRouter() { return *m_router; }
 
-void Player::kick() {
+void ServerPlayer::kick() {
   auto weak = weak_from_this();
   if (m_router->getSocket() != nullptr) {
     m_router->getSocket()->disconnectFromHost();
@@ -283,7 +217,7 @@ void Player::kick() {
   if (p) p->getRouter().setSocket(nullptr);
 }
 
-void Player::emitKicked() {
+void ServerPlayer::emitKicked() {
   auto &main_ctx = Server::instance().context();
   if (main_ctx.stopped()) {
     // 此时应当是Server析构中 踢人那一段
@@ -298,7 +232,7 @@ void Player::emitKicked() {
   f.wait();
 }
 
-void Player::reconnect(std::shared_ptr<ClientSocket> client) {
+void ServerPlayer::reconnect(std::shared_ptr<ClientSocket> client) {
   auto &server = Server::instance();
   if (server.user_manager().getPlayers().size() <= 10) {
     server.broadcast("ServerMessage", fmt::format("{} backed", screenName));
@@ -312,7 +246,7 @@ void Player::reconnect(std::shared_ptr<ClientSocket> client) {
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
   if (room) {
     Server::instance().user_manager().setupPlayer(*this, true);
-    room->pushRequest(fmt::format("{},reconnect", id));
+    room->pushRequest(fmt::format("{},reconnect", getId()));
   } else {
     // 懒得处理掉线玩家在大厅了！踢掉得了
     doNotify("ErrorMsg", "Unknown Error");
@@ -320,30 +254,30 @@ void Player::reconnect(std::shared_ptr<ClientSocket> client) {
   }
 }
 
-void Player::startGameTimer() {
+void ServerPlayer::startGameTimer() {
   gameTime = 0;
   auto now = system_clock::now();
   gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
-void Player::pauseGameTimer() {
+void ServerPlayer::pauseGameTimer() {
   auto now = system_clock::now();
   auto timestamp = duration_cast<seconds>(now.time_since_epoch()).count();
   gameTime += (timestamp - gameTimerStartTimestamp);
 }
 
-void Player::resumeGameTimer() {
+void ServerPlayer::resumeGameTimer() {
   auto now = system_clock::now();
   gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
-int Player::getGameTime() {
+int ServerPlayer::getGameTime() {
   auto now = system_clock::now();
   auto timestamp = duration_cast<seconds>(now.time_since_epoch()).count();
-  return gameTime + (getState() == Player::Online ? (timestamp - gameTimerStartTimestamp) : 0);
+  return gameTime + (getState() == ServerPlayer::Online ? (timestamp - gameTimerStartTimestamp) : 0);
 }
 
-void Player::onReplyReady() {
+void ServerPlayer::onReplyReady() {
   if (!insideGame()) return;
 
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
@@ -354,37 +288,37 @@ void Player::onReplyReady() {
   }
 }
 
-void Player::onStateChanged() {
+void ServerPlayer::onStateChanged() {
   if (!insideGame()) return;
 
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
   if (!room) return;
 
   auto thread = room->thread().lock();
-  if (thread) thread->setPlayerState(connId, id, room->getId());
+  if (thread) thread->setPlayerState(connId, getId(), room->getId());
 
   room->doBroadcastNotify(room->getPlayers(), "NetStateChanged",
-                          Cbor::encodeArray({ id, getStateString() }));
+                          Cbor::encodeArray({ getId(), getStateString() }));
 
   auto state = getState();
-  if (state == Player::Online) {
+  if (state == ServerPlayer::Online) {
     resumeGameTimer();
   } else {
     pauseGameTimer();
   }
 }
 
-void Player::onReadyChanged() {
+void ServerPlayer::onReadyChanged() {
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
   if (!room) return;
 
   room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
-                          Cbor::encodeArray({ id, ready }));
+                          Cbor::encodeArray({ getId(), isReady() }));
 }
 
-void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
+void ServerPlayer::saveState(std::string_view jsonData, std::function<void()> &&cb) {
   do {
-    if (id < 0) break;
+    if (getId() < 0) break;
 
     auto room_base = getRoom().lock();
     if (!room_base) break;
@@ -399,7 +333,7 @@ void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
 
     auto hexData = toHex(jsonData);
     auto &gamedb = Server::instance().gameDatabase();
-    auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", id, mode, hexData);
+    auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", getId(), mode, hexData);
 
     return gamedb.async_exec(sql, cb);
   } while (false);
@@ -408,7 +342,7 @@ void Player::saveState(std::string_view jsonData, std::function<void()> &&cb) {
   asio::post(main_ctx, cb);
 }
 
-void Player::getSaveState(std::function<void(std::string)> &&cb) {
+void ServerPlayer::getSaveState(std::function<void(std::string)> &&cb) {
   do {
     auto room_base = getRoom().lock();
     auto room = dynamic_pointer_cast<Room>(room_base);
@@ -420,7 +354,7 @@ void Player::getSaveState(std::function<void(std::string)> &&cb) {
       break;
     }
 
-    auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", id, mode);
+    auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", getId(), mode);
     auto &db = Server::instance().gameDatabase();
 
     return db.async_select(sql, [cb](Sqlite3::QueryResult result) {
@@ -442,9 +376,9 @@ void Player::getSaveState(std::function<void(std::string)> &&cb) {
   asio::post(main_ctx, [=] { cb("{}"); });
 }
 
-void Player::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
+void ServerPlayer::saveGlobalState(std::string_view key, std::string_view jsonData, std::function<void()> &&cb) {
   do {
-    if (id < 0) break;
+    if (getId() < 0) break;
 
     if (!Sqlite3::checkString(key)) {
       spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
@@ -453,7 +387,7 @@ void Player::saveGlobalState(std::string_view key, std::string_view jsonData, st
 
     auto hexData = toHex(jsonData);
     auto &gamedb = Server::instance().gameDatabase();
-    auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", id, key, hexData);
+    auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", getId(), key, hexData);
 
     return gamedb.async_exec(sql, cb);
   } while (false);
@@ -462,14 +396,14 @@ void Player::saveGlobalState(std::string_view key, std::string_view jsonData, st
   asio::post(main_ctx, cb);
 }
 
-void Player::getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&cb) {
+void ServerPlayer::getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&cb) {
   do {
     if (!Sqlite3::checkString(key)) {
       spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
       break;
     }
 
-    auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", id, key);
+    auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", getId(), key);
 
     auto &db = Server::instance().gameDatabase();
     return db.async_select(sql, [cb](Sqlite3::QueryResult result) {

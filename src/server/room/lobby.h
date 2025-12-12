@@ -5,7 +5,7 @@
 #include "server/room/roombase.h"
 
 struct Packet;
-class Player;
+class ServerPlayer;
 
 class Lobby final : public RoomBase {
 private:
@@ -19,9 +19,9 @@ public:
 
   auto getPlayers() const -> const decltype(players) &;
 
-  void addPlayer(Player &player) final;
-  void removePlayer(Player &player) final;
-  void handlePacket(Player &sender, const Packet &packet) final;
+  void addPlayer(ServerPlayer &player) final;
+  void removePlayer(ServerPlayer &player) final;
+  void handlePacket(ServerPlayer &sender, const Packet &packet) final;
 
   void updateOnlineInfo();
 
@@ -29,12 +29,13 @@ public:
 
 private:
   // for handle packet
-  void updateAvatar(Player &, const Packet &);
-  void updatePassword(Player &, const Packet &);
-  void createRoom(Player &, const Packet &);
-  void enterRoom(Player &, const Packet &);
-  void observeRoom(Player &, const Packet &);
-  void refreshRoomList(Player &, const Packet &);
+  void updateAvatar(ServerPlayer &, const Packet &);
+  void updatePassword(ServerPlayer &, const Packet &);
+  void createRoom(ServerPlayer &, const Packet &);
+  void enterRoom(ServerPlayer &, const Packet &);
+  void observeRoom(ServerPlayer &, const Packet &);
+  void refreshRoomList(ServerPlayer &, const Packet &);
+  void handleTask(ServerPlayer &, const Packet &);
 
-  void joinRoom(Player &, const Packet &, bool ob = false);
+  void joinRoom(ServerPlayer &, const Packet &, bool ob = false);
 };

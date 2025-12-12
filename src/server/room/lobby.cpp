@@ -2,16 +2,21 @@
 
 #include "server/room/lobby.h"
 #include "server/server.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/user/user_manager.h"
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
 #include "network/client_socket.h"
+#include "server/task/task_manager.h"
+#include "server/task/task.h"
 
 #include "core/c-wrapper.h"
 #include "core/util.h"
 
 #include <openssl/sha.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 Lobby::Lobby() {
   id = 0;
@@ -21,7 +26,7 @@ auto Lobby::getPlayers() const -> const decltype(players) & {
   return players;
 }
 
-void Lobby::addPlayer(Player &player) {
+void Lobby::addPlayer(ServerPlayer &player) {
   auto &um = Server::instance().user_manager();
   if (player.getState() == Player::Robot) {
     um.deletePlayer(player);
@@ -35,7 +40,7 @@ void Lobby::addPlayer(Player &player) {
   updateOnlineInfo();
 }
 
-void Lobby::removePlayer(Player &player) {
+void Lobby::removePlayer(ServerPlayer &player) {
   auto connId = player.getConnId();
   // spdlog::debug("[LOBBY_REMOVEPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   players.erase(connId);
@@ -75,7 +80,7 @@ void Lobby::checkAbandoned() {
   }
 }
 
-void Lobby::updateAvatar(Player &sender, const Packet &packet) {
+void Lobby::updateAvatar(ServerPlayer &sender, const Packet &packet) {
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();
 
@@ -101,7 +106,7 @@ void Lobby::updateAvatar(Player &sender, const Packet &packet) {
   sender.doNotify("UpdateAvatar", avatar);
 }
 
-void Lobby::updatePassword(Player &sender, const Packet &packet) {
+void Lobby::updatePassword(ServerPlayer &sender, const Packet &packet) {
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();
 
@@ -155,7 +160,7 @@ void Lobby::updatePassword(Player &sender, const Packet &packet) {
   sender.doNotify("UpdatePassword", passed ? "1" : "0");
 }
 
-void Lobby::createRoom(Player &sender, const Packet &packet) {
+void Lobby::createRoom(ServerPlayer &sender, const Packet &packet) {
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();
 
@@ -200,7 +205,7 @@ void Lobby::createRoom(Player &sender, const Packet &packet) {
   }
 }
 
-void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
+void Lobby::joinRoom(ServerPlayer &sender, const Packet &pkt, bool observe) {
   auto &rm = Server::instance().room_manager();
 
   auto data = pkt.cborData;
@@ -251,15 +256,15 @@ void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
   }
 }
 
-void Lobby::enterRoom(Player &sender, const Packet &pkt) {
+void Lobby::enterRoom(ServerPlayer &sender, const Packet &pkt) {
   joinRoom(sender, pkt, false);
 }
 
-void Lobby::observeRoom(Player &sender, const Packet &pkt) {
+void Lobby::observeRoom(ServerPlayer &sender, const Packet &pkt) {
   joinRoom(sender, pkt, true);
 }
 
-void Lobby::refreshRoomList(Player &sender, const Packet &) {
+void Lobby::refreshRoomList(ServerPlayer &sender, const Packet &) {
   auto &rm = Server::instance().room_manager();
 
   auto &rooms = rm.getRooms();
@@ -301,9 +306,29 @@ void Lobby::refreshRoomList(Player &sender, const Packet &) {
   sender.doNotify("UpdateRoomList", oss.str());
 }
 
-typedef void (Lobby::*room_cb)(Player &, const Packet &);
+void Lobby::handleTask(ServerPlayer &sender, const Packet &packet) {
+  json arr;
+  try {
+    arr = json::from_cbor(packet.cborData);
+  } catch (...) {
+    return;
+  }
+  if (!arr.is_array()) return;
 
-void Lobby::handlePacket(Player &sender, const Packet &packet) {
+  if (arr.size() != 2) return;
+  std::string type = arr[0];
+  auto bindata = json::to_cbor(arr[1]);
+  std::string data { bindata.begin(), bindata.end() };
+
+  auto &tm = Server::instance().task_manager();
+  auto &task = tm.createTask(type, data);
+  tm.attachTaskToUser(task.getId(), sender.getConnId());
+  task.start();
+}
+
+typedef void (Lobby::*room_cb)(ServerPlayer &, const Packet &);
+
+void Lobby::handlePacket(ServerPlayer &sender, const Packet &packet) {
   static const std::unordered_map<std::string_view, room_cb> lobby_actions = {
     {"UpdateAvatar", &Lobby::updateAvatar},
     {"UpdatePassword", &Lobby::updatePassword},
@@ -311,6 +336,7 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     {"EnterRoom", &Lobby::enterRoom},
     {"ObserveRoom", &Lobby::observeRoom},
     {"RefreshRoomList", &Lobby::refreshRoomList},
+    {"LobbyTask", &Lobby::handleTask},
     {"Chat", &Lobby::chat},
     {"ReadGlobalSaveState", &Lobby::readGlobalSaveState},
   };

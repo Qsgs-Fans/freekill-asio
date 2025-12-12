@@ -4,7 +4,7 @@
 #include "core/packman.h"
 #include "server/user/auth.h"
 #include "server/user/user_manager.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/server.h"
 #include "network/client_socket.h"
 #include "network/router.h"

@@ -5,7 +5,7 @@
 #include "server/room/roombase.h"
 
 class Server;
-class Player;
+class ServerPlayer;
 class RoomThread;
 
 class ClientSocket;
@@ -17,9 +17,9 @@ public:
   Room(Room &&) = delete;
   ~Room();
 
-  void addPlayer(Player &player);
-  void removePlayer(Player &player);
-  void handlePacket(Player &sender, const Packet &packet);
+  void addPlayer(ServerPlayer &player);
+  void removePlayer(ServerPlayer &player);
+  void handlePacket(ServerPlayer &sender, const Packet &packet);
 
   // Property reader & setter
   // ==================================={
@@ -39,14 +39,14 @@ public:
   void setSettings(const std::string_view &settings);
   bool isAbandoned() const;
 
-  std::weak_ptr<Player> getOwner() const;
-  void setOwner(Player &owner);
+  std::weak_ptr<ServerPlayer> getOwner() const;
+  void setOwner(ServerPlayer &owner);
 
-  void addRobot(Player &player);
+  void addRobot(ServerPlayer &player);
 
-  void addObserver(Player &player);
-  void removeObserver(Player &player);
-  bool hasObserver(Player &player) const;
+  void addObserver(ServerPlayer &player);
+  void removeObserver(ServerPlayer &player);
+  bool hasObserver(ServerPlayer &player) const;
   const std::vector<int> &getObservers() const;
 
   int getTimeout() const;
@@ -79,7 +79,7 @@ public:
 
   void addRejectId(int id);
   void removeRejectId(int id);
-  bool isRejected(Player &) const;
+  bool isRejected(ServerPlayer &) const;
 
   // router用
   void setRequestTimer(int ms);
@@ -98,8 +98,8 @@ public:
   // 只能加不能删除；添加的人机在gameOver时自然释放
   // 这个函数单纯只在c++侧新建人机，不通知客户端，需要Lua逻辑另外完成
   // 需要返回添加的那个人机
-  Player &addNpc();
-  void removeNpc(Player &);
+  ServerPlayer &addNpc();
+  void removeNpc(ServerPlayer &);
 
 private:
   int m_thread_id = 0;
@@ -134,7 +134,7 @@ private:
 
   std::unique_ptr<boost::asio::steady_timer> request_timer = nullptr;
 
-  void createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> socket);
+  void createRunnedPlayer(ServerPlayer &player, std::shared_ptr<ClientSocket> socket);
   void detectSameIpAndDevice();
   void updatePlayerGameTime();
 
@@ -144,15 +144,15 @@ private:
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);
 
-  void setPlayerReady(Player &, bool ready);
+  void setPlayerReady(ServerPlayer &, bool ready);
 
   // handle packet
-  void quitRoom(Player &, const Packet &);
-  void addRobotRequest(Player &, const Packet &);
-  void kickPlayer(Player &, const Packet &);
-  void ready(Player &, const Packet &);
-  void startGame(Player &, const Packet &);
-  void trust(Player &, const Packet &);
-  void changeRoom(Player &, const Packet &);
+  void quitRoom(ServerPlayer &, const Packet &);
+  void addRobotRequest(ServerPlayer &, const Packet &);
+  void kickPlayer(ServerPlayer &, const Packet &);
+  void ready(ServerPlayer &, const Packet &);
+  void startGame(ServerPlayer &, const Packet &);
+  void trust(ServerPlayer &, const Packet &);
+  void changeRoom(ServerPlayer &, const Packet &);
 
 };

@@ -7,7 +7,7 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 #include "server/server.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/user/user_manager.h"
 #include "core/c-wrapper.h"
 
@@ -141,18 +141,18 @@ bool Room::isAbandoned() const {
   return true;
 }
 
-std::weak_ptr<Player> Room::getOwner() const {
+std::weak_ptr<ServerPlayer> Room::getOwner() const {
   return Server::instance().user_manager().findPlayerByConnId(m_owner_conn_id);
 }
 
-void Room::setOwner(Player &owner) {
+void Room::setOwner(ServerPlayer &owner) {
   // BOT不能当房主！
   if (owner.getId() < 0) return;
   m_owner_conn_id = owner.getConnId();
   doBroadcastNotify(players, "RoomOwner", Cbor::encodeArray( { owner.getId() } ));
 }
 
-void Room::addPlayer(Player &player) {
+void Room::addPlayer(ServerPlayer &player) {
   auto pid = player.getId();
   if (isRejected(player)) {
     player.doNotify("ErrorMsg", "rejected your demand of joining room");
@@ -178,7 +178,7 @@ void Room::addPlayer(Player &player) {
 
   players.push_back(player.getConnId());
   player.setRoom(*this);
-  // spdlog::debug("[ROOM_ADDPLAYER] Player {} (connId={}, state={}) added to room {}", player.getId(), player.getConnId(), player.getStateString(), id);
+  // spdlog::debug("[ROOM_ADDPLAYER] ServerPlayer {} (connId={}, state={}) added to room {}", player.getId(), player.getConnId(), player.getStateString(), id);
 
   // 这集不用信号；这个信号是把玩家从大厅删除的
   // if (pid > 0)
@@ -232,7 +232,7 @@ void Room::addPlayer(Player &player) {
   }
 }
 
-void Room::addRobot(Player &player) {
+void Room::addRobot(ServerPlayer &player) {
   if (player.getConnId() != m_owner_conn_id || isFull())
     return;
 
@@ -242,10 +242,10 @@ void Room::addRobot(Player &player) {
   addPlayer(robot);
 }
 
-void Room::createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> socket) {
+void Room::createRunnedPlayer(ServerPlayer &player, std::shared_ptr<ClientSocket> socket) {
   auto &um = Server::instance().user_manager();
 
-  auto runner = std::make_shared<Player>();
+  auto runner = std::make_shared<ServerPlayer>();
   runner->setState(Player::Online);
   runner->getRouter().setSocket(socket);
   runner->setScreenName(std::string(player.getScreenName()));
@@ -272,7 +272,7 @@ void Room::createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> sock
   }
 }
 
-void Room::removePlayer(Player &player) {
+void Room::removePlayer(ServerPlayer &player) {
   // 如果是旁观者的话，就清旁观者
   if (hasObserver(player)) {
     removeObserver(player);
@@ -288,7 +288,7 @@ void Room::removePlayer(Player &player) {
     player.setReady(false);
     players.erase(it);
 
-    // spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
+    // spdlog::debug("[ROOM_REMOVEPLAYER] ServerPlayer {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
 
     doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
   } else {
@@ -325,7 +325,7 @@ void Room::removePlayer(Player &player) {
   }
 }
 
-void Room::addObserver(Player &player) {
+void Room::addObserver(ServerPlayer &player) {
   // 首先只能旁观在运行的房间，因为旁观是由Lua处理的
   if (!isStarted()) {
     player.doNotify("ErrorMsg", "Can only observe running room.");
@@ -346,12 +346,12 @@ void Room::addObserver(Player &player) {
   pushRequest(fmt::format("{},observe", player.getId()));
 }
 
-void Room::removeObserver(Player &player) {
+void Room::removeObserver(ServerPlayer &player) {
   if (auto it = find(observers, player.getConnId()); it != observers.end()) {
     observers.erase(it);
   }
 
-  if (player.getState() == Player::Online) {
+  if (player.getState() == ServerPlayer::Online) {
     player.doNotify("Setup", Cbor::encodeArray({
       player.getId(),
       player.getScreenName(),
@@ -365,7 +365,7 @@ void Room::removeObserver(Player &player) {
   if (thread) thread->removeObserver(player.getId(), id);
 }
 
-bool Room::hasObserver(Player &player) const {
+bool Room::hasObserver(ServerPlayer &player) const {
   return find(observers, player.getConnId()) != observers.end();
 }
 
@@ -567,7 +567,7 @@ void Room::updatePlayerGameData(int id, const std::string_view &mode) {
   if (!player) return;
 
   auto room = dynamic_pointer_cast<Room>(player->getRoom().lock());
-  if (player->getState() == Player::Robot || !room) {
+  if (player->getState() == ServerPlayer::Robot || !room) {
     return;
   }
 
@@ -660,13 +660,13 @@ void Room::_gameOver() {
     }
 
     // 游戏结束变回来
-    if (p->getState() == Player::Trust) {
+    if (p->getState() == ServerPlayer::Trust) {
       p->setState(Player::Online);
     }
 
     // 踢了并非人类，但是注意下面的两个kick不会释放player
     if (!p->isOnline()) {
-      if (p->getState() == Player::Offline) {
+      if (p->getState() == ServerPlayer::Offline) {
         if (!isOutdated() && p->isRunned()) {
           server.temporarilyBan(p->getId());
         } else {
@@ -767,20 +767,20 @@ void Room::removeRejectId(int id) {
   }
 }
 
-bool Room::isRejected(Player &player) const {
+bool Room::isRejected(ServerPlayer &player) const {
   return find(rejected_players, player.getId()) != rejected_players.end();
 }
 
-void Room::setPlayerReady(Player &p, bool ready) {
+void Room::setPlayerReady(ServerPlayer &p, bool ready) {
   p.setReady(ready);
   doBroadcastNotify(players, "ReadyChanged", Cbor::encodeArray({ p.getId(), ready }));
 }
 
 // ------------------------------------------------
-void Room::quitRoom(Player &player, const Packet &) {
+void Room::quitRoom(ServerPlayer &player, const Packet &) {
   removePlayer(player);
   auto &rm = Server::instance().room_manager();
-  if (player.getState() == Player::Online)
+  if (player.getState() == ServerPlayer::Online)
     rm.lobby().lock()->addPlayer(player);
 
   if (isOutdated()) {
@@ -790,13 +790,13 @@ void Room::quitRoom(Player &player, const Packet &) {
   }
 }
 
-void Room::addRobotRequest(Player &player, const Packet &) {
+void Room::addRobotRequest(ServerPlayer &player, const Packet &) {
   auto &conf = Server::instance().config();
   if (find(conf.disabledFeatures, "AddRobot") == conf.disabledFeatures.end())
     addRobot(player);
 }
 
-void Room::kickPlayer(Player &player, const Packet &pkt) {
+void Room::kickPlayer(ServerPlayer &player, const Packet &pkt) {
   auto data = pkt.cborData;
   int i = 0;
   auto result = cbor_stream_decode((cbor_data)data.data(), data.size(), &Cbor::intCallbacks, &i);
@@ -827,12 +827,12 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
   });
 }
 
-void Room::trust(Player &player, const Packet &pkt) {
+void Room::trust(ServerPlayer &player, const Packet &pkt) {
   // 仅在对局中允许托管
   if (!isStarted()) return;
 
   // 将玩家置为托管
-  if (player.getState() != Player::Trust) {
+  if (player.getState() != ServerPlayer::Trust) {
     player.setState(Player::Trust);
     if (player.thinking()) {
       auto thread = this->thread().lock();
@@ -844,7 +844,7 @@ void Room::trust(Player &player, const Packet &pkt) {
 }
 
 // 改变房间配置
-void Room::changeRoom(Player &player, const Packet &packet) {
+void Room::changeRoom(ServerPlayer &player, const Packet &packet) {
   // 检查权限：只有房主才能修改房间配置
   if (player.getConnId() != m_owner_conn_id) {
     player.doNotify("ErrorMsg", "只有房主才能修改房间配置");
@@ -903,11 +903,11 @@ void Room::changeRoom(Player &player, const Packet &packet) {
   }
 }
 
-void Room::ready(Player &player, const Packet &) {
+void Room::ready(ServerPlayer &player, const Packet &) {
   setPlayerReady(player, !player.isReady());
 }
 
-void Room::startGame(Player &player, const Packet &) {
+void Room::startGame(ServerPlayer &player, const Packet &) {
   if (isOutdated()) {
     auto &um = Server::instance().user_manager();
     for (auto pid : getPlayers()) {
@@ -921,9 +921,9 @@ void Room::startGame(Player &player, const Packet &) {
   }
 }
 
-typedef void (Room::*room_cb)(Player &, const Packet &);
+typedef void (Room::*room_cb)(ServerPlayer &, const Packet &);
 
-void Room::handlePacket(Player &sender, const Packet &packet) {
+void Room::handlePacket(ServerPlayer &sender, const Packet &packet) {
   static const std::unordered_map<std::string_view, room_cb> room_actions = {
     {"QuitRoom", &Room::quitRoom},
     {"AddRobot", &Room::addRobotRequest},
@@ -1015,7 +1015,7 @@ void Room::setSessionData(std::string_view json) {
   session_data = json;
 }
 
-Player &Room::addNpc() {
+ServerPlayer &Room::addNpc() {
   auto &um = Server::instance().user_manager();
   auto &robot = um.createRobot();
 
@@ -1025,7 +1025,7 @@ Player &Room::addNpc() {
   return robot;
 }
 
-void Room::removeNpc(Player &player) {
+void Room::removeNpc(ServerPlayer &player) {
   auto &um = Server::instance().user_manager();
 
   auto it = find(players, player.getConnId());

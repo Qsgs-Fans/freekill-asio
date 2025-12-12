@@ -69,13 +69,4 @@ private:
   std::function<void(Packet &)> message_got_callback = 0;
 
   boost::asio::awaitable<void> reader();
-
-  /*
-  QByteArray aesEnc(const QByteArray &in);
-  QByteArray aesDec(const QByteArray &out);
-  void init();
-
-  AES_KEY aes_key;
-  bool aes_ready;
-  */
 };

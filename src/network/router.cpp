@@ -2,13 +2,13 @@
 
 #include "network/router.h"
 #include "network/client_socket.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/server.h"
 #include "core/c-wrapper.h"
 
 namespace asio = boost::asio;
 
-Router::Router(Player *player, std::shared_ptr<ClientSocket> socket, RouterType type) {
+Router::Router(ServerPlayer *player, std::shared_ptr<ClientSocket> socket, RouterType type) {
   this->type = type;
   this->player = player;
   this->socket = nullptr;
@@ -50,7 +50,7 @@ void Router::request(int type, const std::string_view &command,
   requestId++;
   if (requestId > 10000000) requestId = 1;
 
-  expectedReplyId = requestId;
+  expectedReplyIds.push_back(requestId);
   replyTimeout = timeout;
 
   using namespace std::chrono;
@@ -105,10 +105,11 @@ void Router::handlePacket(const Packet &packet) {
     using namespace std::chrono;
     std::lock_guard<std::mutex> lock(replyMutex);
 
-    if (requestId != this->expectedReplyId)
+    auto it = std::find(expectedReplyIds.begin(), expectedReplyIds.end(), requestId);
+    if (it == expectedReplyIds.end())
       return;
 
-    this->expectedReplyId = -1;
+    expectedReplyIds.erase(it);
 
     auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
     if (replyTimeout >= 0 &&

@@ -3,7 +3,7 @@
 #pragma once
 
 struct Packet;
-class Player;
+class ServerPlayer;
 class ClientSocket;
 
 class Router {
@@ -26,7 +26,7 @@ public:
   };
 
   Router() = delete;
-  Router(Player *player, std::shared_ptr<ClientSocket> socket, RouterType type);
+  Router(ServerPlayer *player, std::shared_ptr<ClientSocket> socket, RouterType type);
   ~Router();
 
   std::shared_ptr<ClientSocket> getSocket() const;
@@ -48,7 +48,7 @@ protected:
 
 private:
   std::shared_ptr<ClientSocket> socket;
-  Player *player = nullptr;
+  ServerPlayer *player = nullptr;
 
   RouterType type;
 
@@ -56,7 +56,7 @@ private:
 
   int64_t requestStartTime;
   std::string m_reply;    // should be json string
-  int expectedReplyId;
+  std::vector<int> expectedReplyIds;
   int replyTimeout;
 
   void sendMessage(const std::string &msg);

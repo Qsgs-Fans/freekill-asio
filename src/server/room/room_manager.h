@@ -5,7 +5,7 @@
 class RoomBase;
 class Lobby;
 class Room;
-class Player;
+class ServerPlayer;
 
 class RoomManager {
 private:
@@ -17,7 +17,7 @@ public:
   RoomManager(RoomManager &) = delete;
   RoomManager(RoomManager &&) = delete;
 
-  std::shared_ptr<Room> createRoom(Player &, const std::string &name, int capacity,
+  std::shared_ptr<Room> createRoom(ServerPlayer &, const std::string &name, int capacity,
                                    int timeout = 15, const std::string &settings = "\xA0");
 
   void removeRoom(int id);
@@ -27,6 +27,6 @@ public:
   auto getRooms() const -> const decltype(rooms) &;
 
 private:
-  // what can i say? Player::getRoom需要
+  // what can i say? ServerPlayer::getRoom需要
   std::shared_ptr<Lobby> m_lobby;
 };

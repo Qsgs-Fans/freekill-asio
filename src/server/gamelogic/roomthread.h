@@ -67,7 +67,7 @@ private:
   void emit_signal(std::function<void()> f);
 
   int m_capacity;
-  // 为什么不直接用智能指针呢，算了，这个值表示当前引用它的房间数量
+  // 为什么不直接用智能指针呢，算了，这个值表示当前引用它的房间数量+Task数量
   int m_ref_count = 0;
   std::string md5;
 };

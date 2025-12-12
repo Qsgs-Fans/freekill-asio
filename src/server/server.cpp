@@ -6,12 +6,14 @@
 #include "server/room/lobby.h"
 #include "server/user/user_manager.h"
 #include "server/user/auth.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "network/server_socket.h"
 #include "network/client_socket.h"
 #include "network/router.h"
 #include "network/http_listener.h"
 #include "server/gamelogic/roomthread.h"
+#include "server/task/task_manager.h"
+#include "server/task/task.h"
 
 #include "server/admin/shell.h"
 
@@ -44,6 +46,7 @@ Server &Server::instance() {
 Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
   m_room_manager = std::make_unique<RoomManager>();
+  m_task_manager = std::make_unique<TaskManager>();
 
   db = std::make_unique<Sqlite3>();
 
@@ -68,7 +71,7 @@ awaitable<void> Server::heartbeat() {
       spdlog::error(ec.message());
       break;
     }
-    std::vector<std::shared_ptr<Player>> to_delete;
+    std::vector<std::shared_ptr<ServerPlayer>> to_delete;
     for (auto &[_, p] : m_user_manager->getPlayers()) {
       if (p->isOnline() && p->ttl <= 0) {
         to_delete.push_back(p);
@@ -117,9 +120,10 @@ void Server::stop() {
 
 // 提前析构掉Player啥的，防止instance复活
 void Server::_clear() {
+  m_task_manager = nullptr;
   m_threads.clear();
 
-  std::vector<std::shared_ptr<Player>> players;
+  std::vector<std::shared_ptr<ServerPlayer>> players;
   for (auto &[_, p] : m_user_manager->getPlayers()) {
     players.push_back(p);
   }
@@ -139,12 +143,16 @@ auto Server::context() -> decltype(*main_io_ctx) {
   return *main_io_ctx;
 }
 
-UserManager &Server::user_manager() {
+UserManager &Server::user_manager() const {
   return *m_user_manager;
 }
 
-RoomManager &Server::room_manager() {
+RoomManager &Server::room_manager() const {
   return *m_room_manager;
+}
+
+TaskManager &Server::task_manager() const {
+  return *m_task_manager;
 }
 
 Sqlite3 &Server::database() {

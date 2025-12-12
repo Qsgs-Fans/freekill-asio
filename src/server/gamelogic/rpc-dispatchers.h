@@ -5,11 +5,11 @@
 #include "server/rpc-lua/jsonrpc.h"
 #include <nlohmann/json.hpp>
 
-class Player;
+class ServerPlayer;
 
 namespace RpcDispatchers {
 
-extern nlohmann::json getPlayerObject(Player &p);
+extern nlohmann::json getPlayerObject(ServerPlayer &p);
 
 extern const JsonRpc::RpcMethodMap ServerRpcMethods;
 

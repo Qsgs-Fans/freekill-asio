@@ -4,9 +4,12 @@
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/server.h"
 #include "server/user/user_manager.h"
-#include "server/user/player.h"
+#include "server/user/serverplayer.h"
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
+#include "server/room/lobby.h"
+#include "server/task/task_manager.h"
+#include "server/task/task.h"
 
 using json = nlohmann::json;
 
@@ -79,6 +82,154 @@ static _rpcRet _rpc_print(const JsonRpcPacket &packet) {
   std::cout << std::endl;
   return { true, nullVal };
 }
+
+static _rpcRet _rpc_Task_delay(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+  int id = std::get<int>(packet.param1);
+  int ms = std::get<int>(packet.param2);
+  if (ms <= 0) {
+    return { false, nullVal };
+  }
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, "Task not found"sv };
+  }
+
+  task->delay(ms);
+
+  return { true, nullVal };
+}
+
+static _rpcRet _rpc_Task_decreaseRefCount(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int id = std::get<int>(packet.param1);
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, "Task not found"sv };
+  }
+
+  task->decreaseRefCount();
+
+  return { true, nullVal };
+}
+
+static _rpcRet _rpc_Task_saveGlobalState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 3 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto id = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
+
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, nullVal };
+  }
+
+  auto lobby = Server::instance().room_manager().lobby().lock();
+  if (!lobby) {
+    return { false, nullVal };
+  }
+
+  lobby->saveGlobalState(key, jsonData, [id] {
+    auto task = Server::instance().task_manager().getTask(id);
+    if (!task) return;
+    auto thread = task->thread();
+    if (thread) thread->wakeUp(task->getId(), "query_done");
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Task_getGlobalSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto id = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, nullVal };
+  }
+
+  auto lobby = Server::instance().room_manager().lobby().lock();
+  if (!lobby) {
+    return { false, nullVal };
+  }
+
+  lobby->getGlobalSaveState(key, [id](std::string result) {
+    auto task = Server::instance().task_manager().getTask(id);
+    if (!task) return;
+    auto thread = task->thread();
+    if (thread) thread->wakeUp(task->getId(), result);
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Task_getPlayer(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int id = std::get<int>(packet.param1);
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, "Task not found"sv };
+  }
+
+  auto owner = Server::instance().user_manager().findPlayerByConnId(task->getUserConnId()).lock();
+  if (!owner) {
+    return { true, nullVal };
+  }
+
+  auto bin = json::to_cbor(RpcDispatchers::getPlayerObject(*owner));
+  return { true, std::string(bin.begin(), bin.end()) };
+}
+
+static _rpcRet _rpc_Server_getTask(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int id = std::get<int>(packet.param1);
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, "Task not found"sv };
+  }
+
+  json j {
+    { "id", task->getId() },
+    { "taskType", task->getTaskType() },
+    { "data", task->getData() },
+  };
+
+  auto bin = json::to_cbor(j);
+  return { true, std::string(bin.begin(), bin.end()) };
+}
+
 
 // part2: Player相关
 
@@ -642,7 +793,7 @@ static _rpcRet _rpc_Room_getGlobalSaveState(const JsonRpcPacket &packet) {
 
 // 收官：getRoom
 
-json RpcDispatchers::getPlayerObject(Player &p) {
+json RpcDispatchers::getPlayerObject(ServerPlayer &p) {
   return {
     { "connId", p.getConnId() },
     { "id", p.getId() },
@@ -698,6 +849,14 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "qWarning", _rpc_qWarning },
   { "qCritical", _rpc_qCritical },
   { "print", _rpc_print },
+
+  { "Task_delay", _rpc_Task_delay },
+  { "Task_decreaseRefCount", _rpc_Task_decreaseRefCount },
+  { "Task_saveGlobalState", _rpc_Task_saveGlobalState },
+  { "Task_getGlobalSaveState", _rpc_Task_getGlobalSaveState },
+  { "Task_getPlayer", _rpc_Task_getPlayer },
+
+  { "Server_getTask", _rpc_Server_getTask },
 
   { "ServerPlayer_doRequest", _rpc_Player_doRequest },
   { "ServerPlayer_waitForReply", _rpc_Player_waitForReply },

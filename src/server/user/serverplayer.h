@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "core/player.h"
+
 struct Packet;
 class ClientSocket;
 class Router;
@@ -9,52 +11,27 @@ class Server;
 class Room;
 class RoomBase;
 
-class Player : public std::enable_shared_from_this<Player> {
+class ServerPlayer final:
+  public Player,
+  public std::enable_shared_from_this<ServerPlayer>
+{
 public:
-  enum State {
-    Invalid,
-    Online,
-    Trust,
-    Run,
-    Leave,
-    Robot,  // only for real robot
-    Offline
-  };
+  explicit ServerPlayer();
+  ServerPlayer(ServerPlayer &) = delete;
+  ServerPlayer(ServerPlayer &&) = delete;
+  ~ServerPlayer();
 
-  explicit Player();
-  Player(Player &) = delete;
-  Player(Player &&) = delete;
-  ~Player();
+  std::string getScreenName() const override;
+  void setScreenName(const std::string &name) override;
 
-  // property getter/setters
-  int getId() const;
-  void setId(int id);
+  std::string getAvatar() const override;
+  void setAvatar(const std::string &avatar) override;
 
-  std::string_view getScreenName() const;
-  void setScreenName(const std::string &name);
-
-  std::string_view getAvatar() const;
-  void setAvatar(const std::string &avatar);
-
-  int getTotalGameTime() const;
-  void addTotalGameTime(int toAdd);
-
-  State getState() const;
-  std::string_view getStateString() const;
   bool isOnline() const;
   bool insideGame();
-  void setState(State state);
+  void setState(State state) override;
+  void setReady(bool ready) override;
 
-  bool isReady() const;
-  void setReady(bool ready);
-
-  std::vector<int> getGameData();
-  void setGameData(int total, int win, int run);
-  std::string_view getLastGameMode() const;
-  void setLastGameMode(const std::string &mode);
-
-  bool isDied() const;
-  void setDied(bool died);
   bool isRunned() const;
   void setRunned(bool run);
 
@@ -104,19 +81,9 @@ public:
   void getGlobalSaveState(std::string_view key, std::function<void(std::string)> &&);
 
 private:
-  int id = 0;
   std::string screenName;   // screenName should not be same.
   std::string avatar;
-  int totalGameTime = 0;
-  State state = Invalid;
-  bool ready = false;
-  bool died = false;
   bool runned = false;
-
-  std::string lastGameMode;
-  int totalGames = 0;
-  int winCount = 0;
-  int runCount = 0;
 
   int connId;
   std::string uuid_str;
