@@ -18,6 +18,8 @@ public:
   std::string getTaskType() const;
   std::string getData() const;
 
+  RoomThread *thread() const;
+
   // 启动并执行
   void start();
   // 继续执行 对应coro.resume
@@ -40,7 +42,7 @@ private:
   std::string data = "\xF6"; // 必须是CBOR，默认null
 
   // 很遗憾，负责执行Lua代码的那个类命名成这样了 导致在这里有点违和
-  RoomThread *m_thread;
+  RoomThread *m_thread = nullptr;
 
   int lua_ref_count = 0;
   std::mutex lua_ref_mutex;

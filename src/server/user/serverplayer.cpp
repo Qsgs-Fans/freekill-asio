@@ -178,7 +178,7 @@ void ServerPlayer::onNotificationGot(const Packet &packet) {
 }
 
 void ServerPlayer::onDisconnected() {
-  spdlog::info("ServerPlayer {} disconnected{}", getId(),
+  spdlog::info("Player {} disconnected{}", getId(),
                m_router->getSocket() != nullptr ? "" : " (pseudo)");
 
   m_router->setSocket(nullptr);

@@ -317,7 +317,8 @@ void Lobby::handleTask(ServerPlayer &sender, const Packet &packet) {
 
   if (arr.size() != 2) return;
   std::string type = arr[0];
-  std::string data = arr[1];
+  auto bindata = json::to_cbor(arr[1]);
+  std::string data { bindata.begin(), bindata.end() };
 
   auto &tm = Server::instance().task_manager();
   auto &task = tm.createTask(type, data);

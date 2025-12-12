@@ -120,6 +120,7 @@ void Server::stop() {
 
 // 提前析构掉Player啥的，防止instance复活
 void Server::_clear() {
+  m_task_manager = nullptr;
   m_threads.clear();
 
   std::vector<std::shared_ptr<ServerPlayer>> players;

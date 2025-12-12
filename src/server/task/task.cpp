@@ -21,6 +21,7 @@ Task::Task(const std::string &type, const std::string &data)
 Task::~Task() {
   abort();
   m_thread->decreaseRefCount();
+  // spdlog::debug("[MEMORY] Task {} destruct", id);
 }
 
 int Task::getId() const {
@@ -49,6 +50,10 @@ std::string Task::getTaskType() const {
 
 std::string Task::getData() const {
   return data;
+}
+
+RoomThread *Task::thread() const {
+  return m_thread;
 }
 
 void Task::start() {
