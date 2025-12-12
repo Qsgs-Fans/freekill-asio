@@ -12,6 +12,8 @@
 #include "network/router.h"
 #include "network/http_listener.h"
 #include "server/gamelogic/roomthread.h"
+#include "server/task/task_manager.h"
+#include "server/task/task.h"
 
 #include "server/admin/shell.h"
 
@@ -44,6 +46,7 @@ Server &Server::instance() {
 Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
   m_room_manager = std::make_unique<RoomManager>();
+  m_task_manager = std::make_unique<TaskManager>();
 
   db = std::make_unique<Sqlite3>();
 
@@ -139,12 +142,16 @@ auto Server::context() -> decltype(*main_io_ctx) {
   return *main_io_ctx;
 }
 
-UserManager &Server::user_manager() {
+UserManager &Server::user_manager() const {
   return *m_user_manager;
 }
 
-RoomManager &Server::room_manager() {
+RoomManager &Server::room_manager() const {
   return *m_room_manager;
+}
+
+TaskManager &Server::task_manager() const {
+  return *m_task_manager;
 }
 
 Sqlite3 &Server::database() {

@@ -7,11 +7,16 @@
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
 #include "network/client_socket.h"
+#include "server/task/task_manager.h"
+#include "server/task/task.h"
 
 #include "core/c-wrapper.h"
 #include "core/util.h"
 
 #include <openssl/sha.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 Lobby::Lobby() {
   id = 0;
@@ -301,6 +306,25 @@ void Lobby::refreshRoomList(ServerPlayer &sender, const Packet &) {
   sender.doNotify("UpdateRoomList", oss.str());
 }
 
+void Lobby::handleTask(ServerPlayer &sender, const Packet &packet) {
+  json arr;
+  try {
+    arr = json::from_cbor(packet.cborData);
+  } catch (...) {
+    return;
+  }
+  if (!arr.is_array()) return;
+
+  if (arr.size() != 2) return;
+  std::string type = arr[0];
+  std::string data = arr[1];
+
+  auto &tm = Server::instance().task_manager();
+  auto &task = tm.createTask(type, data);
+  tm.attachTaskToUser(task.getId(), sender.getConnId());
+  task.start();
+}
+
 typedef void (Lobby::*room_cb)(ServerPlayer &, const Packet &);
 
 void Lobby::handlePacket(ServerPlayer &sender, const Packet &packet) {
@@ -311,6 +335,7 @@ void Lobby::handlePacket(ServerPlayer &sender, const Packet &packet) {
     {"EnterRoom", &Lobby::enterRoom},
     {"ObserveRoom", &Lobby::observeRoom},
     {"RefreshRoomList", &Lobby::refreshRoomList},
+    {"LobbyTask", &Lobby::handleTask},
     {"Chat", &Lobby::chat},
     {"ReadGlobalSaveState", &Lobby::readGlobalSaveState},
   };

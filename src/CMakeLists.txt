@@ -24,6 +24,9 @@ set(freekill_SRCS
   "server/room/room.cpp"
   "server/room/room_manager.cpp"
 
+  "server/task/task_manager.cpp"
+  "server/task/task.cpp"
+
   "server/rpc-lua/jsonrpc.cpp"
   "server/rpc-lua/rpc-lua.cpp"
 

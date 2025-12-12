@@ -46,13 +46,6 @@ ServerPlayer::~ServerPlayer() {
   if (room) {
     room->removePlayer(*this);
   }
-
-  // 这段现在阶段应该必定由um.deletePlayer触发，就不管了
-  // auto &um = Server::instance().user_manager();
-  // if (um.findPlayer(getId()) == this)
-  //   um.removePlayer(getId());
-
-  // um.removePlayerByConnId(connId);
 }
 
 std::string ServerPlayer::getScreenName() const { return screenName; }
