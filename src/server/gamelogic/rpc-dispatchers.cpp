@@ -185,6 +185,68 @@ static _rpcRet _rpc_Task_getGlobalSaveState(const JsonRpcPacket &packet) {
   return { true, true };
 }
 
+static _rpcRet _rpc_Task_savePlayerGlobalState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 3 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto id = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
+
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, nullVal };
+  }
+
+  auto owner = Server::instance().user_manager().findPlayerByConnId(task->getUserConnId()).lock();
+  if (!owner) {
+    return { true, nullVal };
+  }
+
+  owner->saveGlobalState(key, jsonData, [id] {
+    auto task = Server::instance().task_manager().getTask(id);
+    if (!task) return;
+    auto thread = task->thread();
+    if (thread) thread->wakeUp(task->getId(), "query_done");
+  });
+  return { true, true };
+}
+
+static _rpcRet _rpc_Task_getPlayerGlobalSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto id = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+
+  auto task = Server::instance().task_manager().getTask(id);
+  if (!task) {
+    return { false, nullVal };
+  }
+
+  auto owner = Server::instance().user_manager().findPlayerByConnId(task->getUserConnId()).lock();
+  if (!owner) {
+    return { true, nullVal };
+  }
+
+  owner->getGlobalSaveState(key, [id](std::string result) {
+    auto task = Server::instance().task_manager().getTask(id);
+    if (!task) return;
+    auto thread = task->thread();
+    if (thread) thread->wakeUp(task->getId(), result);
+  });
+  return { true, true };
+}
+
 static _rpcRet _rpc_Task_getPlayer(const JsonRpcPacket &packet) {
   if (!( packet.param_count == 1 &&
     std::holds_alternative<int>(packet.param1)
@@ -854,6 +916,8 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Task_decreaseRefCount", _rpc_Task_decreaseRefCount },
   { "Task_saveGlobalState", _rpc_Task_saveGlobalState },
   { "Task_getGlobalSaveState", _rpc_Task_getGlobalSaveState },
+  { "Task_savePlayerGlobalState", _rpc_Task_savePlayerGlobalState },
+  { "Task_getPlayerGlobalSaveState", _rpc_Task_getPlayerGlobalSaveState },
   { "Task_getPlayer", _rpc_Task_getPlayer },
 
   { "Server_getTask", _rpc_Server_getTask },

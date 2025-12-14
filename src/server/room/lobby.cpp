@@ -44,6 +44,10 @@ void Lobby::removePlayer(ServerPlayer &player) {
   auto connId = player.getConnId();
   // spdlog::debug("[LOBBY_REMOVEPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   players.erase(connId);
+
+  auto &tm = Server::instance().task_manager();
+  tm.removeAllTasksByUser(connId);
+
   updateOnlineInfo();
 }
 
