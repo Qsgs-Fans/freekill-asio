@@ -88,6 +88,16 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
 RoomThread::~RoomThread() {
   io_ctx.stop();
   m_thread.join();
+
+  auto &rm = Server::instance().room_manager();
+  for (auto roomId : m_rooms) {
+    auto room = rm.findRoom(roomId).lock();
+    if (!room) continue;
+
+    // 神秘
+    room->destroyRequestTimer();
+  }
+
   // spdlog::debug("[MEMORY] RoomThread {} destructed", m_id);
 }
 
