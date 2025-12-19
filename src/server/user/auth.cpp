@@ -208,7 +208,7 @@ FAIL:
 
 bool AuthManager::checkVersion() {
   semver::range_set range;
-  semver::parse(">=0.5.14 <0.6.0", range);
+  semver::parse(">=0.5.17 <0.6.0", range);
 
   auto client = p_ptr->client.lock();
   if (!client) return false;
@@ -220,7 +220,7 @@ bool AuthManager::checkVersion() {
   if (semver::parse(ver, version) && range.contains(version)) {
     return true;
   } else {
-    errmsg = R"(["server supports version %1, please update","0.5.14+"])";
+    errmsg = R"(["server supports version %1, please update","0.5.17+"])";
   }
 
   Server::instance().sendEarlyPacket(*client, "ErrorDlg", errmsg);

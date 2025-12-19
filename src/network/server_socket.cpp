@@ -66,7 +66,7 @@ awaitable<void> ServerSocket::udpListener() {
       auto &um = Server::instance().user_manager();
 
       auto json = nlohmann::json {
-        "0.5.14+",
+        "0.5.17+",
         conf.iconUrl,
         conf.description,
         conf.capacity,
