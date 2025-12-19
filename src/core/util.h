@@ -25,3 +25,6 @@ std::string Color(const std::string &raw, fkShell::TextColor color,
                                   fkShell::TextType type = fkShell::NoType);
 
 std::string toHex(std::string_view sv);
+
+std::string qCompress_std(const std::string_view &data, int level = -1);
+std::string qUncompress_std(const std::string_view &data);

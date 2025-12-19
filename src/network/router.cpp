@@ -5,6 +5,7 @@
 #include "server/user/serverplayer.h"
 #include "server/server.h"
 #include "core/c-wrapper.h"
+#include "core/util.h"
 
 namespace asio = boost::asio;
 
@@ -98,6 +99,13 @@ void Router::handlePacket(const Packet &packet) {
   int requestId = packet.requestId;
   int type = packet.type;
   auto cborData = packet.cborData;
+
+  std::string unCompressed;
+
+  if (type & COMPRESSED) {
+    unCompressed = qUncompress_std(cborData);
+    cborData = unCompressed;
+  }
 
   if (type & TYPE_NOTIFICATION) {
     notification_got_callback(packet);

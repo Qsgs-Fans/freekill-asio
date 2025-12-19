@@ -46,4 +46,5 @@ target_link_libraries(freekill-asio PRIVATE
   spdlog::spdlog
   readline
   nlohmann_json::nlohmann_json
+  zlib
 )

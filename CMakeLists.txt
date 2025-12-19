@@ -23,6 +23,7 @@ find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(zlib REQUIRED)
 find_package(PkgConfig)
 pkg_search_module(libgit2 REQUIRED libgit2)
 

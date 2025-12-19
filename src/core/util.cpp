@@ -3,6 +3,7 @@
 #include "core/util.h"
 #include "core/packman.h"
 #include <openssl/md5.h>
+#include <zlib.h>
 
 namespace fs = std::filesystem;
 
@@ -155,4 +156,73 @@ std::string toHex(std::string_view sv) {
     oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
   }
   return oss.str();
+}
+
+static inline void append_be32(std::string &out, uint32_t v) {
+  out.push_back(char((v >> 24) & 0xff));
+  out.push_back(char((v >> 16) & 0xff));
+  out.push_back(char((v >>  8) & 0xff));
+  out.push_back(char((v      ) & 0xff));
+}
+
+std::string qCompress_std(const std::string_view &data, int level) {
+  if (data.empty())
+    return std::string("\0\0\0\0", 4);
+
+  uLong srcLen = data.size();
+  uLong destLen = compressBound(srcLen);
+
+  std::string out;
+  out.reserve(4 + destLen);
+
+  // Qt 风格：先写原始长度（大端）
+  append_be32(out, static_cast<uint32_t>(srcLen));
+
+  out.resize(4 + destLen);
+
+  int ret = compress2(
+    reinterpret_cast<Bytef*>(&out[4]),
+    &destLen,
+    reinterpret_cast<const Bytef*>(data.data()),
+    srcLen,
+    level
+  );
+
+  if (ret != Z_OK)
+    throw std::runtime_error("qCompress_std: compress failed");
+
+  out.resize(4 + destLen);
+  return out;
+}
+
+static inline uint32_t read_be32(const char *p) {
+  return (uint32_t(uint8_t(p[0])) << 24) |
+  (uint32_t(uint8_t(p[1])) << 16) |
+  (uint32_t(uint8_t(p[2])) <<  8) |
+  (uint32_t(uint8_t(p[3])));
+}
+
+std::string qUncompress_std(const std::string_view &data) {
+  if (data.size() < 4)
+    return {};
+
+  uint32_t expectedSize = read_be32(data.data());
+  if (expectedSize == 0)
+    return {};
+
+  std::string out;
+  out.resize(expectedSize);
+
+  uLongf destLen = expectedSize;
+  int ret = uncompress(
+    reinterpret_cast<Bytef*>(&out[0]),
+    &destLen,
+    reinterpret_cast<const Bytef*>(data.data() + 4),
+    data.size() - 4
+  );
+
+  if (ret != Z_OK || destLen != expectedSize)
+    throw std::runtime_error("qUncompress_std: uncompress failed");
+
+  return out;
 }
