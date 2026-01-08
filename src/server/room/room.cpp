@@ -75,7 +75,7 @@ size_t Room::getCapacity() const { return capacity; }
 
 void Room::setCapacity(size_t capacity) { this->capacity = capacity; }
 
-bool Room::isFull() const { return players.size() == capacity; }
+bool Room::isFull() const { return players.size() >= capacity; }
 
 const std::vector<int> &Room::getPlayers() const { return players; }
 const std::vector<int> &Room::getObservers() const { return observers; }
