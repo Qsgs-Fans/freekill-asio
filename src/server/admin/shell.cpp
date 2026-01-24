@@ -528,21 +528,15 @@ void Shell::tempbanCommand(StringList &list) {
 }
 
 void Shell::tempmuteCommand(StringList &list) {
-  if (list.size() != 3) {
-    spdlog::warn("usage: tempmute <type> <name> <duration>");
-    spdlog::warn("type: 1 for full mute, 2 for blocking $-commands");
+  if (list.size() != 2) {
+    spdlog::warn("usage: tempmute <name> <duration>");
     return;
   }
 
   auto &db = Server::instance().database();
-  auto type_num = list[0];
-  auto name = list[1];
-  auto duration_str = list[2];
-  int mute_type = std::stoi(type_num);
-  if (mute_type != 1 && mute_type != 2) {
-    spdlog::warn("Invalid mute type. Use 1 for full mute, 2 for blocking $-commands");
-    return;
-  }
+  auto name = list[0];
+  auto duration_str = list[1];
+  int mute_type = 1; // 1为完全禁言
 
   static const char *invalid_dur = "Invalid duration value. "
     "Possible choices: ??m (minute), ??h (hour), ??d (day) and ??mo (month, 30 days).";
@@ -597,15 +591,9 @@ void Shell::tempmuteCommand(StringList &list) {
 
   std::time_t now_time_t = system_clock::to_time_t(end_tp);
   std::tm local_tm = *std::localtime(&now_time_t);
-  if (mute_type == 1) {
-    spdlog::info("Muted {} until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
-                local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
-                local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
-    } else if (mute_type == 2) {
-      spdlog::info("Muted {} from using $-commands until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
-                local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
-                local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
-  }
+  spdlog::info("Muted {} until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
+              local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+              local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
 }
 
 void Shell::unmuteCommand(StringList &list) {

@@ -54,8 +54,6 @@ void RoomBase::chat(ServerPlayer &sender, const Packet &packet) {
   int muteType = server.isMuted(senderId);
   if (muteType == 1) { // 完全禁言
     return;
-  } else if (muteType == 2 && msg.starts_with("$")) {
-    return;
   }
 
   // 300字限制，与客户端相同 STL必须先判长度

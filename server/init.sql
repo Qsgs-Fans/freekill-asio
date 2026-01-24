@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS tempban (
 
 CREATE TABLE IF NOT EXISTS tempmute (
   uid INTEGER PRIMARY KEY,
-  type INTEGER,  -- 1=完全禁言 2=禁止$开头
+  type INTEGER,  -- 1=完全禁言
   expireAt INTEGER  -- 时间戳
 );
 

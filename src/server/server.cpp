@@ -343,12 +343,7 @@ int Server::isMuted(int playerId) const {
     return 0;
   }
 
-  int type = 1;
-  if (obj.find("type") != obj.end() && !obj["type"].empty()) {
-    type = std::stoi(obj["type"]);
-  }
-
-  return type; // 1为完全禁言，2为禁止$开头
+  return 1; // 1为完全禁言
 }
 
 void Server::beginTransaction() {
