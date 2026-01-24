@@ -21,6 +21,11 @@ set_target_properties(readline PROPERTIES
   INTERFACE_LINK_LIBRARIES "ncursesw"
 )
 
+add_library(ZLIB::ZLIB STATIC IMPORTED)
+set_target_properties(ZLIB::ZLIB PROPERTIES
+  IMPORTED_LOCATION /usr/lib/libz.a
+)
+
 # libgit2不仅要手动编译还要手动导入
 add_library(git2 STATIC IMPORTED)
 set_target_properties(git2 PROPERTIES
