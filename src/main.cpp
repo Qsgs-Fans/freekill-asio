@@ -26,7 +26,7 @@ public:
     pthread_t thread = pthread_self();
     int rc = pthread_getname_np(thread, thread_name, sizeof(thread_name));
     if (rc == 0) {
-      dest.append(std::string_view { thread_name, sizeof(thread_name) });
+      dest.append(std::string_view { thread_name, strlen(thread_name) });
     }
   }
 

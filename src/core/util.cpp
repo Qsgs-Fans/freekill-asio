@@ -7,6 +7,9 @@
 
 namespace fs = std::filesystem;
 
+using hash_pair = std::pair<std::string, std::string>;
+static std::vector<hash_pair> lua_hashes, qml_hashes, js_hashes;
+
 // Read file content, normalize \r\n → \n, compute MD5
 std::string computeFileMD5(const std::string &fname) {
   std::ifstream file(fname, std::ios::binary);
@@ -14,99 +17,131 @@ std::string computeFileMD5(const std::string &fname) {
     return std::string(32, '0'); // Return 32-char zero hash if fail
   }
 
-  std::vector<char> data;
-  char buffer[4096];
+  // 边读边算md5 且遇到\r\n时跳过\r
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
 
-  while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
-    data.insert(data.end(), buffer, buffer + file.gcount());
+  char buffer[8192];
+  bool pending_cr = false; // 上一个 buffer 结尾是 '\r'
+  size_t start = 0;
+
+  // \r\n只是为了严格贴合原版的逻辑，据我所知代码文件没几个有\r\n的，所以unlikely
+
+  while (file.read(buffer, sizeof(buffer)) || file.gcount()) {
+    size_t n = file.gcount();
+    start = 0;
+
+    for (size_t i = 0; i < n; ++i) {
+      char c = buffer[i];
+
+      [[unlikely]] if (pending_cr) {
+        if (c == '\n') {
+          // \r\n -> 批量前面内容
+          if (i > 0) MD5_Update(&ctx, buffer, i);
+          MD5_Update(&ctx, "\n", 1);
+          start = i + 1;
+        } else {
+          // \r 单独处理
+          MD5_Update(&ctx, "\r", 1);
+          start = i;
+        }
+        pending_cr = false;
+      }
+
+      [[unlikely]] if (c == '\r') {
+        // 批量更新 [start, i)
+        if (i > start) MD5_Update(&ctx, buffer + start, i - start);
+
+        // 判断 \r 是否在 buffer 末尾
+        if (i + 1 < n) {
+          if (buffer[i + 1] == '\n') {
+            // CRLF -> 写 \n
+            MD5_Update(&ctx, "\n", 1);
+            i++; // 跳过 \n
+            start = i + 1;
+          } else {
+            // 单独 \r
+            MD5_Update(&ctx, "\r", 1);
+            start = i + 1;
+          }
+        } else {
+          // buffer 最后一个字符，延迟处理
+          pending_cr = true;
+          start = i + 1;
+        }
+      }
+    }
+
+    // 批量更新 buffer 中剩余普通字符
+    if (n > start) {
+      MD5_Update(&ctx, buffer + start, n - start);
+    }
   }
 
-  // Normalize line endings: \r\n → \n
-  std::vector<char> normalized;
-  normalized.reserve(data.size());
-  for (size_t i = 0; i < data.size(); ++i) {
-    if (data[i] == '\r' && i + 1 < data.size() && data[i+1] == '\n') {
-      continue; // skip \r, keep \n
-    }
-    normalized.push_back(data[i]);
+  // 文件结尾如果还有一个孤立 \r
+  [[unlikely]] if (pending_cr) {
+    MD5_Update(&ctx, "\r", 1);
   }
 
   unsigned char digest[MD5_DIGEST_LENGTH];
-  MD5(reinterpret_cast<const unsigned char*>(normalized.data()), normalized.size(), digest);
+  MD5_Final(digest, &ctx);
 
   return toHex({ (char*)digest, MD5_DIGEST_LENGTH });
 }
 
-// Write file MD5: "filename=md5;"
-void writeFileMD5(std::ostringstream &dest, const std::string &fname) {
-  std::string hash = computeFileMD5(fname);
-  dest << fname << '=' << hash << ';';
-}
-
 // Recursively write all files matching regex (sorted by name), dirs first in name order
-void writeDirMD5(std::ostringstream &dest, const std::string &dir, const std::regex &filter_re) {
+void writeDirMD5(const std::string &dir) {
   fs::path path(dir);
 
-  if (!fs::exists(path) || !fs::is_directory(path)) {
-    return;
-  }
-
-  // Collect entries to sort by filename
-  std::vector<fs::directory_entry> entries;
+  // map天生有序 正好如同QDir那样字母序排序
+  std::map<std::string, fs::directory_entry> entries;
   for (const auto& entry : fs::directory_iterator(path)) {
-    entries.push_back(entry);
+    entries.emplace(entry.path().filename().string(), entry);
   }
 
-  // Sort by filename (lexicographical, like Qt QDir::Name)
-  std::sort(entries.begin(), entries.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
-    return a.path().filename() < b.path().filename();
-  });
-
-  for (const auto& entry : entries) {
+  for (const auto& [filename, entry] : entries) {
     if (entry.is_directory()) {
-      writeDirMD5(dest, entry.path().string(), filter_re);
+      writeDirMD5(entry.path().string());
     } else if (entry.is_regular_file()) {
-      std::string filename = entry.path().filename().string();
-      if (std::regex_match(filename, filter_re)) {
-        writeFileMD5(dest, entry.path().string());
+      auto path = entry.path().string();
+      if (filename.ends_with(".lua")) {
+        lua_hashes.push_back({ path, computeFileMD5(path) });
+      } else if (filename.ends_with(".qml")) {
+        qml_hashes.push_back({ path, computeFileMD5(path) });
+      } else if (filename.ends_with(".js")) {
+        js_hashes.push_back({ path, computeFileMD5(path) });
       }
     }
   }
 }
 
 // Handle packages: scan top-level dirs under "packages", skip .disabled, disabled packs, and built-ins
-void writePkgsMD5(std::ostringstream &dest, const std::string &base_dir, const std::string &filter_pattern) {
-  fs::path path(base_dir);
-  if (!fs::exists(path) || !fs::is_directory(path)) {
-    return;
-  }
+void writePkgsMD5() {
+  lua_hashes.clear();
+  qml_hashes.clear();
+  js_hashes.clear();
 
+  fs::path path("packages");
   auto disabled = PackMan::instance().getDisabledPacks();
-  const std::set<std::string> builtinPkgs = {
+  static const std::set<std::string> builtinPkgs = {
     "standard", "standard_cards", "maneuvering", "test"
   };
 
-  std::vector<fs::directory_entry> entries;
+  std::map<std::string, fs::directory_entry> entries;
+
   for (const auto& entry : fs::directory_iterator(path)) {
     if (entry.is_directory()) {
-      entries.push_back(entry);
+      entries.emplace(entry.path().filename().string(), entry);
     }
   }
 
-  // Sort by name
-  std::sort(entries.begin(), entries.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
-    return a.path().filename() < b.path().filename();
-  });
-
-  for (const auto& entry : entries) {
-    std::string dirname = entry.path().filename().string();
-
+  for (const auto& [filename, entry] : entries) {
     // Skip .disabled directories
-    if (dirname.ends_with(".disabled")) continue;
-    if (std::ranges::find(disabled, dirname) != disabled.end()) continue;
-    if (builtinPkgs.contains(dirname)) continue;
+    if (filename.ends_with(".disabled")) continue;
+    if (std::ranges::find(disabled, filename) != disabled.end()) continue;
+    if (builtinPkgs.contains(filename)) continue;
 
-    writeDirMD5(dest, entry.path().string(), std::regex { filter_pattern });
+    writeDirMD5(entry.path().string());
   }
 }
 
@@ -114,25 +149,36 @@ void writePkgsMD5(std::ostringstream &dest, const std::string &base_dir, const s
 std::string calcFileMD5() {
   const std::string flist_path = "flist.txt";
 
-  std::ostringstream flist;
+  writePkgsMD5();
 
-  writePkgsMD5(flist, "packages", "^.*\\.lua$");
-  writePkgsMD5(flist, "packages", "^.*\\.qml$");
-  writePkgsMD5(flist, "packages", "^.*\\.js$");
+  std::string flist;
+  size_t total = lua_hashes.size() + qml_hashes.size() + js_hashes.size();
+  flist.reserve(total * 120);
+
+  auto append = [&](const std::vector<hash_pair>& files){
+    for (const auto& hp : files) {
+      flist += hp.first;
+      flist += '=';
+      flist += hp.second;
+      flist += ';';
+    }
+  };
+  append(lua_hashes);
+  append(qml_hashes);
+  append(js_hashes);
 
   std::ofstream flist_file(flist_path, std::ios::out | std::ios::trunc);
   if (!flist_file.is_open()) {
-    spdlog::warn("Cannot open flist.txt. Quitting.");
+    spdlog::warn("Cannot open flist.txt!");
   } else {
-    flist_file << flist.str();
+    flist_file << flist;
     flist_file.close();
   }
 
   // Now compute MD5 of the generated flist.txt
-  std::string content = flist.str();
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
-  MD5_Update(&md5_ctx, content.data(), content.size());
+  MD5_Update(&md5_ctx, flist.data(), flist.size());
 
   unsigned char digest[MD5_DIGEST_LENGTH];
   MD5_Final(digest, &md5_ctx);
