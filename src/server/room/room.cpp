@@ -247,10 +247,10 @@ void Room::createRunnedPlayer(ServerPlayer &player, std::shared_ptr<ClientSocket
 
   auto runner = std::make_shared<ServerPlayer>();
   runner->setState(Player::Online);
-  runner->getRouter().setSocket(socket);
   runner->setScreenName(std::string(player.getScreenName()));
   runner->setAvatar(std::string(player.getAvatar()));
   runner->setId(player.getId());
+  runner->getRouter().setSocket(socket);
   auto gamedata = player.getGameData();
   runner->setGameData(gamedata[0], gamedata[1], gamedata[2]);
   runner->addTotalGameTime(player.getTotalGameTime());

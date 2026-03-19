@@ -139,12 +139,12 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
 void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::string_view name, std::string_view avatar, int id, std::string_view uuid_str) {
   // create new ServerPlayer and setup
   auto player = std::make_shared<ServerPlayer>();
-  player->router().setSocket(client);
   player->setState(Player::Online);
   player->setScreenName(std::string(name));
   player->setAvatar(std::string(avatar));
   player->setId(id);
   player->setUuid(std::string(uuid_str));
+  player->router().setSocket(client);
 
   spdlog::info("{}[/{}] logged in with UID {}",
                player->getScreenName(), client->peerAddress(), id);

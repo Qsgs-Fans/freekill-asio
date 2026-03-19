@@ -3,6 +3,7 @@
 #include "network/router.h"
 #include "network/client_socket.h"
 #include "server/user/serverplayer.h"
+#include "server/user/user_manager.h"
 #include "server/server.h"
 #include "core/c-wrapper.h"
 #include "core/util.h"
@@ -32,9 +33,10 @@ void Router::setSocket(std::shared_ptr<ClientSocket> socket) {
   this->socket = nullptr;
   if (socket != nullptr) {
     socket->set_message_got_callback([this](Packet &p) { handlePacket(p); });
-    socket->set_disconnected_callback([this, socket] {
-      spdlog::info("{} lost connection: {}", player->getScreenName(), socket->getDisconnectReason());
-      player->onDisconnected();
+    socket->set_disconnected_callback([id = player->getId(), name = player->getScreenName(), socket] {
+      spdlog::info("{} lost connection: {}", name, socket->getDisconnectReason());
+      auto p = Server::instance().user_manager().findPlayer(id).lock();
+      if (p) p->onDisconnected();
     });
     this->socket = socket;
   }

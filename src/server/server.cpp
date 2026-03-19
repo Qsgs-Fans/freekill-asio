@@ -323,6 +323,7 @@ void Server::temporarilyBan(int playerId) {
     }
   });
   player->emitKicked();
+  spdlog::info("Temp banned {} for {} minute(s).", player->getScreenName(), time);
 }
 
 bool Server::isTempBanned(const std::string_view &addr) const {

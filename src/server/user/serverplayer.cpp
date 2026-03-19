@@ -212,9 +212,6 @@ void ServerPlayer::kick() {
   if (m_router->getSocket() != nullptr) {
     m_router->getSocket()->disconnectFromHost("kicked by server");
   }
-
-  auto p = weak.lock();
-  if (p) p->getRouter().setSocket(nullptr);
 }
 
 void ServerPlayer::emitKicked() {
