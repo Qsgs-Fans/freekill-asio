@@ -60,6 +60,13 @@ private:
 
   std::string m_peer_address;
 
+  // 别乱序发送了
+  std::deque<std::shared_ptr<std::string>> send_queue;
+  void send_loop();
+  // 因为有发送队列了，需要等待发送都完成后再关闭
+  bool is_closing = false;
+  void do_close();
+
   std::vector<unsigned char> cborBuffer;
 
   cbor_decoder_status handleBuffer(size_t length);

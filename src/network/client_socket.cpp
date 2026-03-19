@@ -60,6 +60,15 @@ std::string_view ClientSocket::peerAddress() const {
 }
 
 void ClientSocket::disconnectFromHost() {
+  is_closing = true;
+
+  if (send_queue.empty()) {
+    do_close();
+  }
+  // else: 在send_loop中检测关闭
+}
+
+void ClientSocket::do_close() {
   try {
     m_socket.shutdown(tcp::socket::shutdown_both);
     m_socket.close();
@@ -74,10 +83,30 @@ void ClientSocket::disconnectFromHost() {
 }
 
 void ClientSocket::send(const std::shared_ptr<std::string> msg) {
+  send_queue.push_back(msg);
+  if (send_queue.size() == 1) send_loop();
+}
+
+void ClientSocket::send_loop() {
+  if (send_queue.empty()) {
+    if (is_closing) {
+      do_close();
+    }
+    return;
+  }
+
+  auto msg = send_queue.front();
   asio::async_write(
     m_socket,
     asio::const_buffer { msg->data(), msg->size() },
-    detached
+    [this, self = shared_from_this(), msg] (std::error_code ec, size_t) {
+      if (ec) {
+        spdlog::critical("send error, msg = {}, error = {}", msg->c_str(), ec.message());
+      }
+
+      send_queue.pop_front();
+      send_loop();
+    }
   );
 }
 
