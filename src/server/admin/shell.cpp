@@ -45,7 +45,7 @@ void Shell::helpCommand(StringList &) {
   HELP_MSG("{}: List all running rooms, or show player of room by an <id>.", "lsroom");
   HELP_MSG("{}: Broadcast message.", "msg/m");
   HELP_MSG("{}: Broadcast message to a room.", "msgroom/mr");
-  HELP_MSG("{}: Kick a player by his <id>.", "kick");
+  HELP_MSG("{}: Kick a player by his <name>.", "kick");
   HELP_MSG("{}: Kick all players in a room, then abandon it.", "killroom");
   HELP_MSG("{}: Delete dead players in the lobby.", "checklobby");
 
@@ -244,17 +244,20 @@ void Shell::syncpkgCommand(StringList &) {
 
 void Shell::kickCommand(StringList &list) {
   if (list.empty()) {
-    spdlog::warn("The 'kick' command needs a player id.");
+    spdlog::warn("The 'kick' command needs a player name.");
     return;
   }
 
-  auto pid = list[0];
-  int id = std::atoi(pid.c_str());
+  auto playerName = list[0];
 
-  auto p = Server::instance().user_manager().findPlayer(id).lock();
-  if (p) {
-    p->emitKicked();
+  const auto &players = Server::instance().user_manager().getPlayers();
+  for (const auto &[_, p]: players) {
+    if (p->getScreenName() == playerName) {
+      p->emitKicked();
+      return;
+    }
   }
+  spdlog::warn("Can't find any online player named {}.", playerName);
 }
 
 void Shell::msgCommand(StringList &list) {
@@ -998,6 +1001,32 @@ static char *package_generator(const char *text, int state) {
   return NULL;
 }
 
+static char *online_user_generator(const char *text, int state) {
+  static std::vector<std::string> arr;
+  static size_t list_index, len;
+  const char *name;
+
+  if (state == 0) {
+    arr.clear();
+    for (const auto &[_, p] : Server::instance().user_manager().getPlayers()) {
+      arr.push_back(p->getScreenName());
+    }
+    list_index = 0;
+    len = strlen(text);
+  }
+
+  while (list_index < arr.size()) {
+    name = arr[list_index].c_str();
+    ++list_index;
+    if (strncmp(name, text, len) == 0) {
+      return strdup(name);
+    }
+  }
+
+  return NULL;
+};
+
+
 static char *user_generator(const char *text, int state) {
   // TODO: userinfo表需要一个cache机制
   static Sqlite3::QueryResult arr;
@@ -1070,6 +1099,8 @@ static char **fk_completion(const char* text, int start, int end) {
       matches = rl_completion_matches(text, user_generator);
     } else if (command.starts_with("unban")) {
       matches = rl_completion_matches(text, banned_user_generator);
+    } else if (command.starts_with("kick")) {
+      matches = rl_completion_matches(text, online_user_generator);
     }
   }
 
