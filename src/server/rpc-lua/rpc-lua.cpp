@@ -476,7 +476,15 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 }
 
 RpcLua::~RpcLua() {
-  if (!alive()) return;
+  if (!alive()) {
+    // 回收僵尸进程
+    int wstatus;
+    pid_t w = waitpid(child_pid, &wstatus, WNOHANG);
+    if (w == -1) {
+      spdlog::error("waitpid() error when reaping zombie: {}", strerror(errno));
+    }
+    return;
+  }
 
   call("bye");
 
