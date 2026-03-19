@@ -17,20 +17,44 @@ using asio::ip::udp;
 // 也是一种很蠢的方式了
 static bool shellAlive = false;
 
+#include "spdlog/pattern_formatter.h"
+class thread_name_flag : public spdlog::custom_flag_formatter {
+public:
+  void format(const spdlog::details::log_msg &, const std::tm &, spdlog::memory_buf_t &dest) override
+  {
+    char thread_name[16];
+    pthread_t thread = pthread_self();
+    int rc = pthread_getname_np(thread, thread_name, sizeof(thread_name));
+    if (rc == 0) {
+      dest.append(std::string_view { thread_name, sizeof(thread_name) });
+    }
+  }
+
+  std::unique_ptr<custom_flag_formatter> clone() const override {
+    return spdlog::details::make_unique<thread_name_flag>();
+  }
+};
+
 static void initLogger() {
   auto logger_file = "freekill.log";
 
   std::vector<spdlog::sink_ptr> sinks;
   auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
+  auto formatter = std::make_unique<spdlog::pattern_formatter>();
+  formatter->add_flag<thread_name_flag>('t').set_pattern("\r%C-%m-%d %H:%M:%S.%e %t[%^%L%$] %v");
+  stdout_sink->set_formatter(std::move(formatter));
+
   stdout_sink->set_color_mode(spdlog::color_mode::always);
-  stdout_sink->set_pattern("\r[%C-%m-%d %H:%M:%S.%f] [%t/%^%L%$] %v");
   sinks.push_back(stdout_sink);
 
   // 单个log文件最大30M 最多备份5个 算上当前log文件的话最多同时存在6个log
   // 解决了牢版服务器关服后log消失的事情 伟大
   auto rotate_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logger_file, 1048576 * 30, 5);
-  rotate_sink->set_pattern("[%C-%m-%d %H:%M:%S.%f] [%t/%L] %v");
+
+  formatter = std::make_unique<spdlog::pattern_formatter>();
+  formatter->add_flag<thread_name_flag>('t').set_pattern("%C-%m-%d %H:%M:%S.%e %t[%L] %v");
+  rotate_sink->set_formatter(std::move(formatter));
   sinks.push_back(rotate_sink);
 
   auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>([](const spdlog::details::log_msg &) {
@@ -126,6 +150,8 @@ int main(int argc, char *argv[]) {
   if (!parse_opt(argc, argv, cfg)) {
     return 0;
   }
+
+  pthread_setname_np(pthread_self(), "MainThread");
 
   initLogger();
   spdlog::info("server is starting");
