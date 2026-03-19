@@ -767,21 +767,20 @@ static void sigintHandler(int) {
   rl_reset_line_state();
   rl_replace_line("", 0);
   rl_crlf();
+  puts("(To exit, press Ctrl+D or type quit)");
   rl_forced_update_display();
 }
 static char **fk_completion(const char *text, int start, int end);
 static char *null_completion(const char *, int) { return NULL; }
 
 Shell::Shell() {
-  // setObjectName("Shell");
   // Setup readline here
 
-  // 别管Ctrl+C了
-  //rl_catch_signals = 1;
-  //rl_catch_sigwinch = 1;
-  //rl_persistent_signal_handlers = 1;
-  //rl_set_signals();
+  rl_catch_signals = 1;
+  rl_catch_sigwinch = 1;
+  rl_set_signals();
   signal(SIGINT, sigintHandler);
+
   rl_attempted_completion_function = fk_completion;
   rl_completion_entry_function = null_completion;
 
@@ -833,6 +832,7 @@ void Shell::handleLine(char *bytes) {
     spdlog::info("Server is shutting down.");
     Server::instance().stop();
     done = true;
+    free(bytes);
     return;
   }
 
@@ -840,6 +840,7 @@ void Shell::handleLine(char *bytes) {
 
   if (!strncmp(bytes, "crash", 5)) {
     spdlog::error("Crashing."); // should dump core
+    free(bytes);
     std::exit(1);
     return;
   }
