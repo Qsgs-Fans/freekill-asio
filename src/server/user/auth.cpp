@@ -197,10 +197,10 @@ bool AuthManager::loadSetupData(const Packet &packet) {
   return true;
 
 FAIL:
-  spdlog::warn("Invalid setup string: version={}", p_ptr->version);
+  spdlog::warn("Invalid setup string: {}", p_ptr->version);
   if (auto client = p_ptr->client.lock()) {
     Server::instance().sendEarlyPacket(*client, "ErrorDlg", "INVALID SETUP STRING");
-    client->disconnectFromHost();
+    client->disconnectFromHost("invalid setup string");
   }
 
   return false;
@@ -224,7 +224,7 @@ bool AuthManager::checkVersion() {
   }
 
   Server::instance().sendEarlyPacket(*client, "ErrorDlg", errmsg);
-  client->disconnectFromHost();
+  client->disconnectFromHost("version mismatch");
   return false;
 }
 
@@ -243,7 +243,7 @@ bool AuthManager::checkIfUuidNotBanned() {
   if (auto client = p_ptr->client.lock(); client) {
     Server::instance().sendEarlyPacket(*client, "ErrorDlg", "you have been banned!");
     spdlog::info("Refused banned UUID: {}", uuid_str);
-    client->disconnectFromHost();
+    client->disconnectFromHost("banned");
   }
   return false;
 }
@@ -256,7 +256,7 @@ bool AuthManager::checkMd5() {
     if (auto client = p_ptr->client.lock()) {
       server.sendEarlyPacket(*client, "ErrorMsg", "MD5 check failed!");
       server.sendEarlyPacket(*client, "UpdatePackage", PackMan::instance().summary());
-      client->disconnectFromHost();
+      client->disconnectFromHost("md5 mismatch");
     }
     return false;
   }
@@ -484,9 +484,8 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
 FAIL:
   if (!passed) {
     if (auto c = p_ptr->client.lock(); c) {
-      spdlog::info("{} lost connection: {}", c->peerAddress(), error_msg);
       server.sendEarlyPacket(*c, "ErrorDlg", error_msg);
-      c->disconnectFromHost();
+      c->disconnectFromHost(error_msg);
     }
     return {};
   }

@@ -89,7 +89,7 @@ const std::unordered_map<int, std::shared_ptr<ServerPlayer>> &UserManager::getPl
 
 void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   auto addr = client->peerAddress();
-  spdlog::info("client {} connected", addr);
+  // spdlog::info("client {} connected", addr);
 
   auto &server = Server::instance();
   auto &db = server.database();
@@ -98,19 +98,22 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   auto result = db.select(fmt::format("SELECT * FROM banip WHERE ip='{}';", addr));
 
   const char *errmsg = nullptr;
+  const char *reject_reason = "";
 
   if (!result.empty()) {
     errmsg = "you have been banned!";
+    reject_reason = "IP is banned";
   } else if (server.isTempBanned(addr)) {
     errmsg = "you have been temporarily banned!";
+    reject_reason = "IP is temp banned";
   } else if (online_players_map.size() >= (size_t)server.config().capacity) {
     errmsg = "server is full!";
+    reject_reason = "server is full";
   }
 
   if (errmsg) {
     server.sendEarlyPacket(*client, "ErrorDlg", errmsg);
-    spdlog::info("Refused banned IP: {}", addr);
-    client->disconnectFromHost();
+    client->disconnectFromHost(reject_reason);
     return;
   }
 
@@ -126,7 +129,7 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   client->timerSignup->async_wait([weak = client->weak_from_this()](const std::error_code& ec){
     if (!ec) {
       auto ptr = weak.lock();
-      if (ptr) ptr->disconnectFromHost();
+      if (ptr) ptr->disconnectFromHost("timeout");
     } else if (ec.value() != asio::error::operation_aborted) {
       spdlog::error("error in timerSignup: {}", ec.message());
     }
@@ -142,6 +145,9 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   player->setAvatar(std::string(avatar));
   player->setId(id);
   player->setUuid(std::string(uuid_str));
+
+  spdlog::info("{}[/{}] logged in with UID {}",
+               player->getScreenName(), client->peerAddress(), id);
 
   auto &server = Server::instance();
   if (online_players_map.size() <= 10) {

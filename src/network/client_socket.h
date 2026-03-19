@@ -38,8 +38,10 @@ public:
   tcp::socket &socket();
   std::string_view peerAddress() const;
 
-  void disconnectFromHost();
+  void disconnectFromHost(const std::string &reason); // = "unknown reason");
   void send(const std::shared_ptr<std::string> msg);
+
+  const std::string &getDisconnectReason() const;
 
   // signal connectors
   void set_disconnected_callback(std::function<void()>);
@@ -70,6 +72,8 @@ private:
   std::vector<unsigned char> cborBuffer;
 
   cbor_decoder_status handleBuffer(size_t length);
+
+  std::string disconnect_reason = "unknown reason";
 
   // signals
   std::function<void()> disconnected_callback = 0;

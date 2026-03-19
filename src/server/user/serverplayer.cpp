@@ -178,7 +178,7 @@ void ServerPlayer::onNotificationGot(const Packet &packet) {
 }
 
 void ServerPlayer::onDisconnected() {
-  spdlog::info("Player {} disconnected{}", getId(),
+  spdlog::info("{} logged out{}", getScreenName(),
                m_router->getSocket() != nullptr ? "" : " (pseudo)");
 
   m_router->setSocket(nullptr);
@@ -210,7 +210,7 @@ Router &ServerPlayer::getRouter() { return *m_router; }
 void ServerPlayer::kick() {
   auto weak = weak_from_this();
   if (m_router->getSocket() != nullptr) {
-    m_router->getSocket()->disconnectFromHost();
+    m_router->getSocket()->disconnectFromHost("kicked by server");
   }
 
   auto p = weak.lock();

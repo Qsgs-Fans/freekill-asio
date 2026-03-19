@@ -13,7 +13,7 @@ using asio::redirect_error;
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
   disconnected_callback = [this] {
-    spdlog::info("client {} disconnected", peerAddress());
+    spdlog::info("client {} lost connection: {}", peerAddress(), getDisconnectReason());
   };
   message_got_callback = [](Packet &p){ p.describe(); };
 }
@@ -31,7 +31,12 @@ awaitable<void> ClientSocket::reader() {
     auto length = co_await m_socket.async_read_some(
       asio::buffer(m_data, max_length), redirect_error(use_awaitable, ec));
 
-    if (ec) break;
+    if (ec) {
+      if (ec == boost::asio::error::eof) {
+        disconnect_reason = "Disconnected";
+      }
+      break;
+    }
 
     auto self = weak.lock();
     if (!self) break;
@@ -59,7 +64,8 @@ std::string_view ClientSocket::peerAddress() const {
   return m_peer_address;
 }
 
-void ClientSocket::disconnectFromHost() {
+void ClientSocket::disconnectFromHost(const std::string &reason) {
+  disconnect_reason = reason;
   is_closing = true;
 
   if (send_queue.empty()) {
@@ -108,6 +114,10 @@ void ClientSocket::send_loop() {
       send_loop();
     }
   );
+}
+
+const std::string &ClientSocket::getDisconnectReason() const {
+  return disconnect_reason;
 }
 
 void ClientSocket::set_disconnected_callback(std::function<void()> f) {

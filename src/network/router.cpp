@@ -32,7 +32,10 @@ void Router::setSocket(std::shared_ptr<ClientSocket> socket) {
   this->socket = nullptr;
   if (socket != nullptr) {
     socket->set_message_got_callback([this](Packet &p) { handlePacket(p); });
-    socket->set_disconnected_callback([this] { player->onDisconnected(); });
+    socket->set_disconnected_callback([this, socket] {
+      spdlog::info("{} lost connection: {}", player->getScreenName(), socket->getDisconnectReason());
+      player->onDisconnected();
+    });
     this->socket = socket;
   }
 }
