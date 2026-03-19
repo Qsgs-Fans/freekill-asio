@@ -868,12 +868,8 @@ void Shell::handleLine(char *bytes) {
 }
 
 void Shell::redisplay() {
-  // QString tmp = syntaxHighlight(rl_line_buffer);
   rl_clear_visible_line();
   rl_forced_update_display();
-
-  //moveCursorToStart();
-  //printf("\r{}{}", prompt, tmp.toUtf8().constData());
 }
 
 void Shell::moveCursorToStart() {

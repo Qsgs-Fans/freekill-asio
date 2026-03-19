@@ -39,6 +39,17 @@ static void initLogger() {
   auto logger_file = "freekill.log";
 
   std::vector<spdlog::sink_ptr> sinks;
+
+  // 先清空已输入的内容
+  auto clearline_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+    [](const spdlog::details::log_msg &msg) {
+      if (!shellAlive) return;
+      auto &shell = Server::instance().shell();
+      shell.clearLine();
+    });
+  sinks.push_back(clearline_sink);
+
+  // 然后输出到stdout中
   auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
   auto formatter = std::make_unique<spdlog::pattern_formatter>();
@@ -48,6 +59,7 @@ static void initLogger() {
   stdout_sink->set_color_mode(spdlog::color_mode::always);
   sinks.push_back(stdout_sink);
 
+  // 然后输出到rotate文件
   // 单个log文件最大30M 最多备份5个 算上当前log文件的话最多同时存在6个log
   // 解决了牢版服务器关服后log消失的事情 伟大
   auto rotate_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logger_file, 1048576 * 30, 5);
@@ -57,17 +69,18 @@ static void initLogger() {
   rotate_sink->set_formatter(std::move(formatter));
   sinks.push_back(rotate_sink);
 
-  auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>([](const spdlog::details::log_msg &) {
-    if (!shellAlive) return;
-    auto &shell = Server::instance().shell();
-    if (!shell.lineDone()) shell.redisplay();
-  });
-  sinks.push_back(callback_sink);
+  // 最后重新展示已输入内容
+  auto redisplay_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+    [](const spdlog::details::log_msg &msg) {
+      if (!shellAlive) return;
+      auto &shell = Server::instance().shell();
+      if (!shell.lineDone()) shell.redisplay();
+    });
+  sinks.push_back(redisplay_sink);
 
   auto spd_logger = std::make_shared<spdlog::logger>("fk-logger", begin(sinks), end(sinks));
   spdlog::register_logger(spd_logger);
   spdlog::set_default_logger(spd_logger);
-  // spdlog::set_pattern("\r[%C-%m-%d %H:%M:%S.%f] [%t/%^%L%$] %v");
   spdlog::set_level(spdlog::level::trace);
   spdlog::flush_every(std::chrono::seconds(3));
 }
