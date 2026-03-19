@@ -17,6 +17,8 @@ public:
   RoomManager(RoomManager &) = delete;
   RoomManager(RoomManager &&) = delete;
 
+  void destroy();
+
   std::shared_ptr<Room> createRoom(ServerPlayer &, const std::string &name, int capacity,
                                    int timeout = 15, const std::string &settings = "\xA0");
 

@@ -419,7 +419,6 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
   child_stdin { ctx }, child_stdout { ctx }
 {
   using namespace std::chrono;
-  auto start = steady_clock::now();
 
   int stdin_pipe[2];  // [0]=read, [1]=write
   int stdout_pipe[2]; // [0]=read, [1]=write
@@ -474,10 +473,6 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
   child_stdout = { io_ctx, stdout_pipe[0] };
 
   wait(WaitForNotification, "hello", 0);
-
-  auto end = steady_clock::now();
-  auto ms = duration_cast<milliseconds>(end - start).count();
-  spdlog::info("Lua state created in {} ms", ms);
 }
 
 RpcLua::~RpcLua() {

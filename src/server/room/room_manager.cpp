@@ -13,6 +13,11 @@ RoomManager::RoomManager() {
   m_lobby = std::make_shared<Lobby>();
 }
 
+// 避免Room在析构时复活Server
+void RoomManager::destroy() {
+  rooms.clear();
+}
+
 std::shared_ptr<Room> RoomManager::createRoom(ServerPlayer &creator, const std::string &name, int capacity,
                                               int timeout, const std::string &settings)
 {
