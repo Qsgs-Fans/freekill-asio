@@ -35,7 +35,7 @@ awaitable<void> ClientSocket::reader() {
       if (ec == boost::asio::error::eof) {
         disconnect_reason = "Disconnected";
       } else {
-        disconnect_reason = ec.what();
+        disconnect_reason = ec.message();
       }
       break;
     }
