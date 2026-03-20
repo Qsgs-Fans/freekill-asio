@@ -34,25 +34,27 @@ awaitable<void> ClientSocket::reader() {
     auto length = co_await m_socket.async_read_some(
       asio::buffer(m_data, max_length), redirect_error(use_awaitable, ec));
 
-    std::string reason = "";
     if (ec) {
+      std::string reason = "";
       if (ec == boost::asio::error::eof) {
         reason = "Disconnected";
       } else {
         reason = ec.message();
+      }
+
+      auto self = weak.lock();
+      if (!self) {
+        spdlog::info("client {} lost connection: {}", addr, reason);
+      } else {
+        disconnect_reason = reason;
       }
       break;
     }
 
     auto self = weak.lock();
     if (!self) {
-      if (!reason.empty()) {
-        spdlog::info("client {} lost connection: {}", addr, reason);
-      }
       break;
     }
-
-    disconnect_reason = reason;
 
     auto stat = self->handleBuffer(length);
     if (stat == CBOR_DECODER_ERROR) {
