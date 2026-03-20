@@ -26,22 +26,33 @@ awaitable<void> ClientSocket::reader() {
   // 下面那个死循环的持续周期可能比this的生命周期长，所以需要挂个检测
   auto weak { weak_from_this() };
 
+  // 由于生命周期原因，先把打log所需的信息储存
+  std::string addr { peerAddress() };
+
   for (;;) {
     boost::system::error_code ec;
     auto length = co_await m_socket.async_read_some(
       asio::buffer(m_data, max_length), redirect_error(use_awaitable, ec));
 
+    std::string reason = "";
     if (ec) {
       if (ec == boost::asio::error::eof) {
-        disconnect_reason = "Disconnected";
+        reason = "Disconnected";
       } else {
-        disconnect_reason = ec.message();
+        reason = ec.message();
       }
       break;
     }
 
     auto self = weak.lock();
-    if (!self) break;
+    if (!self) {
+      if (!reason.empty()) {
+        spdlog::info("client {} lost connection: {}", addr, reason);
+      }
+      break;
+    }
+
+    disconnect_reason = reason;
 
     auto stat = self->handleBuffer(length);
     if (stat == CBOR_DECODER_ERROR) {
