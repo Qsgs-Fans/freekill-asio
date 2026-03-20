@@ -27,16 +27,18 @@ std::shared_ptr<ClientSocket> Router::getSocket() const { return socket; }
 void Router::setSocket(std::shared_ptr<ClientSocket> socket) {
   if (this->socket != nullptr) {
     this->socket->set_message_got_callback([](Packet&){});
-    this->socket->set_disconnected_callback([]{});
+    this->socket->set_disconnected_callback([name = player->getScreenName(), reason = this->socket->getDisconnectReason()]{
+      spdlog::info("{} lost connection: {} (useless socket)", name, reason);
+    });
   }
 
   this->socket = nullptr;
   if (socket != nullptr) {
     socket->set_message_got_callback([this](Packet &p) { handlePacket(p); });
-    socket->set_disconnected_callback([id = player->getId(), name = player->getScreenName(), socket] {
+    socket->set_disconnected_callback([connId = player->getConnId(), name = player->getScreenName(), socket] {
       spdlog::info("{} lost connection: {}", name, socket->getDisconnectReason());
-      auto p = Server::instance().user_manager().findPlayer(id).lock();
-      if (p) p->onDisconnected();
+      auto p = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+      if (p && p->router().getSocket().get() == socket.get()) p->onDisconnected();
     });
     this->socket = socket;
   }

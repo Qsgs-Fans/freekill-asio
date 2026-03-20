@@ -146,8 +146,8 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   player->setUuid(std::string(uuid_str));
   player->router().setSocket(client);
 
-  spdlog::info("{}[/{}] logged in with UID {}",
-               player->getScreenName(), client->peerAddress(), id);
+  spdlog::info("{}[/{}] logged in (uid={},connid={})",
+               player->getScreenName(), client->peerAddress(), id, player->getConnId());
 
   auto &server = Server::instance();
   if (online_players_map.size() <= 10) {

@@ -178,7 +178,7 @@ void ServerPlayer::onNotificationGot(const Packet &packet) {
 }
 
 void ServerPlayer::onDisconnected() {
-  spdlog::info("{} logged out{}", getScreenName(),
+  spdlog::info("{} ({}) logged out{}", getScreenName(), connId,
                m_router->getSocket() != nullptr ? "" : " (pseudo)");
 
   m_router->setSocket(nullptr);

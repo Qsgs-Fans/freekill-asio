@@ -463,21 +463,19 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
   }
 
   if (auto player = um.findPlayer(atoi(obj["id"].c_str())).lock(); player) {
+    // 只要在线就踢 无脑顶号
+    if (player->isOnline()) {
+      player->doNotify("ErrorDlg", "others logged in again with this name");
+      player->emitKicked();
+    }
 
     if (player->insideGame()) {
       updateUserLoginData(player->getId());
+      spdlog::info("{}[/{}] reconnected (uid={},connid={})",
+                   player->getScreenName(), client->peerAddress(), player->getId(), player->getConnId());
       player->reconnect(client);
       passed = true;
       return {};
-    } else if (player->isOnline()) {
-      player->doNotify("ErrorDlg", "others logged in again with this name");
-      player->emitKicked();
-    } else {
-      // 又不在游戏内，又不在线，又正常被findPlayer
-      // 这不就是卡死了 针对卡死的我们直接删除然后继续走认证
-      // error_msg = "others logged in with this name";
-      // passed = false;
-      um.deletePlayer(*player);
     }
   }
 
