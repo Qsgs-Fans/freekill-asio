@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-project(freekill-asio VERSION 0.1.12)
+project(freekill-asio VERSION 0.1.13)
 add_definitions(-DFK_VERSION=\"${CMAKE_PROJECT_VERSION}\")
 
 if (DEFINED RPC_DEBUG)

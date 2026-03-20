@@ -38,12 +38,12 @@ awaitable<void> ClientSocket::reader() {
       std::string reason = "";
       if (ec == boost::asio::error::eof) {
         reason = "Disconnected";
-      } else {
+      } else if (ec != boost::asio::error::operation_aborted) {
         reason = ec.message();
       }
 
       auto self = weak.lock();
-      if (!self) {
+      if (!self && !reason.empty()) {
         spdlog::info("client {} lost connection: {}", addr, reason);
       } else {
         disconnect_reason = reason;
