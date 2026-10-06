@@ -38,6 +38,8 @@ std::shared_ptr<Room> RoomManager::createRoom(ServerPlayer &creator, const std::
   room->setThread(thread);
   room->setTimeout(timeout);
   room->setSettings(settings);
+  spdlog::info("Player {} created room {} (id={}, capacity={})",
+               creator.getScreenName(), name, id, capacity);
   return room;
 }
 

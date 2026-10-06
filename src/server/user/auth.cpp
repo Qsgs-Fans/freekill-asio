@@ -269,8 +269,13 @@ std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string_
   auto &db = server.database();
 
   auto sql_find = fmt::format("SELECT * FROM userinfo WHERE name='{}';", p_ptr->name);
-  auto sql_count_uuid =
-    fmt::format("SELECT COUNT() AS cnt FROM uuidinfo WHERE uuid='{}';", p_ptr->uuid);
+  // 只统计最近30天内活跃过的账号，避免历史死号占满设备名额
+  auto sql_count_uuid = fmt::format(
+    "SELECT COUNT(DISTINCT u.id) AS cnt FROM uuidinfo u "
+    "INNER JOIN usergameinfo g ON u.id = g.id "
+    "WHERE u.uuid='{}' AND g.lastLoginTime > {} - 30 * 86400;",
+    p_ptr->uuid, std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count());
 
   auto result = db.select(sql_find);
   if (!result.empty()) return result[0];
@@ -280,6 +285,8 @@ std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string_
   auto result2 = db.select(sql_count_uuid);
   auto num = atoi(result2[0]["cnt"].c_str());
   if (num >= server.config().maxPlayersPerDevice) {
+    spdlog::warn("Device registration limit hit: uuid={} active_accounts={}",
+                 p_ptr->uuid, num);
     return {};
   }
 
@@ -519,4 +526,3 @@ void AuthManager::updateUserLoginData(int id) {
 
   server.endTransaction();
 }
-
